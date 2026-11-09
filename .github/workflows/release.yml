@@ -77,6 +77,8 @@ jobs:
           name: APKs
           path: ${{ env.APK }}
   publish:
+    permissions:
+      contents: write
     name: Publish Release
     if: github.event.inputs.publish != 'y'
     runs-on: ubuntu-latest
