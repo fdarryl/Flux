@@ -20,7 +20,8 @@ open class ToolbarFragment : Fragment {
         toolbar = view.findViewById(R.id.toolbar)
         toolbar.setNavigationIcon(R.drawable.ic_navigation_menu)
         toolbar.setNavigationOnClickListener {
-            (activity as MainActivity).binding.drawerLayout.openDrawer(GravityCompat.START)
+            // Открываем Drawer только если мы находимся в оригинальной активности
+            (activity as? OriginalMainActivity)?.binding?.drawerLayout?.openDrawer(GravityCompat.START)
         }
     }
 

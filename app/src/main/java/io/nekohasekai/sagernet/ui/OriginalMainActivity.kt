@@ -356,7 +356,7 @@ open class OriginalMainActivity : ThemedActivity(),
         return true
     }
 
-    private fun changeState(
+    protected open fun changeState(
         state: BaseService.State,
         msg: String? = null,
         animate: Boolean = false,

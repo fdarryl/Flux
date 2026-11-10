@@ -15,7 +15,8 @@ import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.ktx.*
-import io.nekohasekai.sagernet.ui.MainActivity
+import io.nekohasekai.sagernet.ui.OriginalMainActivity
+import io.nekohasekai.sagernet.ui.ThemedActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -81,7 +82,7 @@ class StatsBar @JvmOverloads constructor(
     }
 
     fun changeState(state: BaseService.State) {
-        val activity = context as MainActivity
+        val activity = context as? ThemedActivity ?: return
         fun postWhenStarted(what: () -> Unit) = activity.lifecycleScope.launch(Dispatchers.Main) {
             delay(100L)
             activity.whenStarted { what() }
@@ -123,7 +124,7 @@ class StatsBar @JvmOverloads constructor(
     }
 
     fun testConnection() {
-        val activity = context as MainActivity
+        val activity = context as? OriginalMainActivity ?: return
         isEnabled = false
         setStatus(app.getText(R.string.connection_test_testing))
         runOnDefaultDispatcher {

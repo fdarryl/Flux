@@ -4,7 +4,7 @@ import android.graphics.Rect
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import io.nekohasekai.sagernet.database.DataStore
-import io.nekohasekai.sagernet.ui.MainActivity
+import io.nekohasekai.sagernet.ui.OriginalMainActivity
 
 class FixedLinearLayoutManager(val recyclerView: RecyclerView) :
     LinearLayoutManager(recyclerView.context, RecyclerView.VERTICAL, false) {
@@ -28,9 +28,8 @@ class FixedLinearLayoutManager(val recyclerView: RecyclerView) :
         // SagerNet Style
         val scrollRange = super.scrollVerticallyBy(dx, recycler, state)
         if (listenerDisabled) return scrollRange
-        val activity = recyclerView.context as? MainActivity
+        val activity = recyclerView.context as? OriginalMainActivity
         if (activity == null) {
-            listenerDisabled = true
             return scrollRange
         }
 
@@ -52,18 +51,6 @@ class FixedLinearLayoutManager(val recyclerView: RecyclerView) :
                 if (isShown) hide()
             }
         } else {
-            /*val screen = Rect().also { activity.window.decorView.getGlobalVisibleRect(it) }
-            val location = Rect().also { activity.stats.getGlobalVisibleRect(it) }
-            if (screen.bottom < location.bottom) {
-                return scrollRange
-            }
-            val height = location.bottom - location.top
-            val mH = activity.stats.measuredHeight
-
-            if (mH > height) {
-                return scrollRange
-            }*/
-
             activity.binding.fab.apply {
                 if (!isShown) show()
             }

@@ -143,7 +143,7 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
         val acquireWakeLock = findPreference<SwitchPreference>(Key.ACQUIRE_WAKE_LOCK)!!
         val enableClashAPI = findPreference<SwitchPreference>(Key.ENABLE_CLASH_API)!!
         enableClashAPI.setOnPreferenceChangeListener { _, newValue ->
-            (activity as MainActivity?)?.refreshNavMenu(newValue as Boolean)
+            (activity as? OriginalMainActivity)?.refreshNavMenu(newValue as Boolean)
             needReload()
             true
         }

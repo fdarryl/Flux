@@ -317,7 +317,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                         snackbar(getString(R.string.no_proxies_found_in_file)).show()
                     } else import(proxies)
                 } catch (e: SubscriptionFoundException) {
-                    (requireActivity() as MainActivity).importSubscription(e.link.toUri())
+                    (requireActivity() as? OriginalMainActivity)?.importSubscription(e.link.toUri())
                 } catch (e: Exception) {
                     Logs.w(e)
                     onMainDispatcher {
@@ -360,7 +360,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                             snackbar(getString(R.string.no_proxies_found_in_clipboard)).show()
                         } else import(proxies)
                     } catch (e: SubscriptionFoundException) {
-                        (requireActivity() as MainActivity).importSubscription(e.link.toUri())
+                        (requireActivity() as? OriginalMainActivity)?.importSubscription(e.link.toUri())
                     } catch (e: Exception) {
                         Logs.w(e)
 
@@ -435,6 +435,10 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             R.id.action_new_anytls -> {
                 startActivity(Intent(requireActivity(), AnyTLSSettingsActivity::class.java))
+            }
+
+            R.id.action_new_config -> {
+                startActivity(Intent(requireActivity(), ConfigSettingActivity::class.java))
             }
 
             R.id.action_new_config -> {
@@ -1168,7 +1172,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             if (!select) {
 
-                undoManager = UndoSnackbarManager(activity as MainActivity, adapter!!)
+                undoManager = UndoSnackbarManager(requireActivity() as ThemedActivity, adapter!!)
 
                 ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
                     ItemTouchHelper.UP or ItemTouchHelper.DOWN, ItemTouchHelper.START
@@ -1675,8 +1679,8 @@ class ConfigurationFragment @JvmOverloads constructor(
 
             fun export(link: String) {
                 val success = SagerNet.trySetPrimaryClip(link)
-                (activity as MainActivity).snackbar(if (success) R.string.action_export_msg else R.string.action_export_err)
-                    .show()
+                (requireActivity() as? ThemedActivity)?.snackbar(if (success) R.string.action_export_msg else R.string.action_export_err)
+                    ?.show()
             }
 
             override fun onMenuItemClick(item: MenuItem): Boolean {
@@ -1701,7 +1705,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                     }
                 } catch (e: Exception) {
                     Logs.w(e)
-                    (activity as MainActivity).snackbar(e.readableMessage).show()
+                    (requireActivity() as? ThemedActivity)?.snackbar(e.readableMessage)?.show()
                     return true
                 }
                 return true
@@ -1715,7 +1719,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             if (data != null) {
                 runOnDefaultDispatcher {
                     try {
-                        (requireActivity() as MainActivity).contentResolver.openOutputStream(data)!!
+                        (requireActivity() as? ThemedActivity)?.contentResolver?.openOutputStream(data)!!
                             .bufferedWriter()
                             .use {
                                 it.write(DataStore.serverConfig)

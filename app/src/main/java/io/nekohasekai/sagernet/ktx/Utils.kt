@@ -215,8 +215,8 @@ fun View.crossFadeFrom(other: View) {
 }
 
 
-fun Fragment.snackbar(textId: Int) = (requireActivity() as MainActivity).snackbar(textId)
-fun Fragment.snackbar(text: CharSequence) = (requireActivity() as MainActivity).snackbar(text)
+fun Fragment.snackbar(textId: Int) = (requireActivity() as ThemedActivity).snackbar(textId)
+fun Fragment.snackbar(text: CharSequence) = (requireActivity() as ThemedActivity).snackbar(text)
 
 fun ThemedActivity.startFilesForResult(
     launcher: ActivityResultLauncher<String>, input: String
@@ -314,8 +314,7 @@ operator fun <F> KMutableProperty0<F>.setValue(
 ) = set(value)
 
 operator fun AtomicBoolean.getValue(thisRef: Any?, property: KProperty<*>): Boolean = get()
-operator fun AtomicBoolean.setValue(thisRef: Any?, property: KProperty<*>, value: Boolean) =
-    set(value)
+operator fun AtomicBoolean.setValue(thisRef: Any?, property: KProperty<*>, value: Boolean) = set(value)
 
 operator fun AtomicInteger.getValue(thisRef: Any?, property: KProperty<*>): Int = get()
 operator fun AtomicInteger.setValue(thisRef: Any?, property: KProperty<*>, value: Int) = set(value)
@@ -324,8 +323,7 @@ operator fun AtomicLong.getValue(thisRef: Any?, property: KProperty<*>): Long = 
 operator fun AtomicLong.setValue(thisRef: Any?, property: KProperty<*>, value: Long) = set(value)
 
 operator fun <T> AtomicReference<T>.getValue(thisRef: Any?, property: KProperty<*>): T = get()
-operator fun <T> AtomicReference<T>.setValue(thisRef: Any?, property: KProperty<*>, value: T) =
-    set(value)
+operator fun <T> AtomicReference<T>.setValue(thisRef: Any?, property: KProperty<*>, value: T) = set(value)
 
 operator fun <K, V> Map<K, V>.getValue(thisRef: K, property: KProperty<*>) = get(thisRef)
 operator fun <K, V> MutableMap<K, V>.setValue(thisRef: K, property: KProperty<*>, value: V?) {

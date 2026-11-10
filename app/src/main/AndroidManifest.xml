@@ -141,6 +141,11 @@
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
+
+        <activity
+            android:name="io.nekohasekai.sagernet.ui.OriginalMainActivity"
+            android:configChanges="uiMode" />
+
         <activity
             android:name="io.nekohasekai.sagernet.ui.VpnRequestActivity"
             android:excludeFromRecents="true"
