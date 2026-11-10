@@ -27,16 +27,6 @@ import io.nekohasekai.sagernet.utils.Theme
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-/**
- * User can customize visibility of notification since Android 8.
- * The default visibility:
- *
- * Android 8.x: always visible due to system limitations
- * VPN:         always invisible because of VPN notification/icon
- * Other:       always visible
- *
- * See also: https://github.com/aosp-mirror/platform_frameworks_base/commit/070d142993403cc2c42eca808ff3fafcee220ac4
- */
 class ServiceNotification(
     private val service: BaseService.Interface, title: String,
     channel: String, visible: Boolean = false,
@@ -101,6 +91,20 @@ class ServiceNotification(
         update()
     }
 
+    suspend fun updateState(state: BaseService.State) {
+        val context = service as Context
+        val stateText = context.getString(when (state) {
+            BaseService.State.Connecting -> R.string.connecting
+            BaseService.State.Connected -> R.string.forward_success
+            BaseService.State.Stopping -> R.string.stopping
+            else -> R.string.not_connected
+        })
+        useBuilder {
+            it.setContentText(stateText)
+        }
+        update()
+    }
+
     suspend fun postNotificationWakeLockStatus(acquired: Boolean) {
         updateActions()
         useBuilder {
@@ -120,7 +124,7 @@ class ServiceNotification(
         .setContentIntent(SagerNet.configureIntent(service))
         .setSmallIcon(R.drawable.ic_service_active)
         .setCategory(NotificationCompat.CATEGORY_SERVICE)
-        .setPriority(if (visible) NotificationCompat.PRIORITY_LOW else NotificationCompat.PRIORITY_MIN)
+        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
 
     private val buildLock = Mutex()
 
@@ -144,6 +148,7 @@ class ServiceNotification(
 
         runOnMainDispatcher {
             updateActions()
+            updateState(service.data.state)
             show()
         }
     }
@@ -154,7 +159,7 @@ class ServiceNotification(
             it.clearActions()
 
             val closeAction = NotificationCompat.Action.Builder(
-                0, service.getText(R.string.stop), PendingIntent.getBroadcast(
+                R.drawable.ic_navigation_close, service.getText(R.string.stop), PendingIntent.getBroadcast(
                     service, 0, Intent(Action.CLOSE).setPackage(service.packageName), flags
                 )
             ).setShowsUserInterface(false).build()
@@ -166,14 +171,6 @@ class ServiceNotification(
                 )
             ).setShowsUserInterface(false).build()
             it.addAction(switchAction)
-
-            val resetUpstreamAction = NotificationCompat.Action.Builder(
-                0, service.getString(R.string.reset_connections),
-                PendingIntent.getBroadcast(
-                    service, 0, Intent(Action.RESET_UPSTREAM_CONNECTIONS), flags
-                )
-            ).setShowsUserInterface(false).build()
-            it.addAction(resetUpstreamAction)
         }
     }
 

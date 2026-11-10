@@ -1,8 +1,13 @@
 package io.nekohasekai.sagernet.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.os.RemoteException
 import android.widget.Button
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.snackbar.Snackbar
 import io.nekohasekai.sagernet.Key
@@ -34,6 +39,13 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main_flux)
 
+        // Запрос разрешения на уведомления для Android 13+
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+
         connectButton = findViewById(R.id.connectButton)
         connectButton?.setOnClickListener {
             if (DataStore.serviceState.canStop) {
@@ -48,7 +60,6 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
 
     private fun toggleVpn() {
         lifecycleScope.launch(Dispatchers.IO) {
-            // Принудительно настраиваем приложение на режим полного VPN при первом запуске
             setupDefaults()
 
             val groupId = DataStore.currentGroupId()
@@ -81,16 +92,11 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
     }
 
     private suspend fun setupDefaults() {
-        // Устанавливаем режим VPN
         DataStore.serviceMode = Key.MODE_VPN
-        // Проксируем всё устройство (не только выбранные приложения)
         DataStore.proxyApps = false
-        // Включаем обход локальной сети (чтобы не терять связь с роутером)
         DataStore.bypassLan = true
-        // Инициализируем стандартные правила (DNS, Direct для локалки и т.д.)
         ProfileManager.getRules()
         
-        // Убеждаемся, что DNS настроены корректно
         if (DataStore.remoteDns.isBlank()) {
             DataStore.remoteDns = "https://1.1.1.1/dns-query"
         }
