@@ -103,7 +103,7 @@ fun Project.setupCommon() {
                 variant.outputs.forEach {
                     it as BaseVariantOutputImpl
                     it.outputFileName = it.outputFileName.replace(
-                        "app", "${project.name}-" + variant.versionName
+                        "app", "Flux-" + variant.versionName
                     ).replace("-release", "").replace("-oss", "")
                 }
             }
@@ -197,10 +197,10 @@ fun Project.setupApp() {
                 outputFileName = if (isPreview) {
                     outputFileName.replace(
                         project.name,
-                        "NekoBox-" + requireMetadata().getProperty("PRE_VERSION_NAME")
+                        "Flux-" + requireMetadata().getProperty("PRE_VERSION_NAME")
                     ).replace("-preview", "")
                 } else {
-                    outputFileName.replace(project.name, "NekoBox-$versionName")
+                    outputFileName.replace(project.name, "Flux-$versionName")
                         .replace("-release", "")
                         .replace("-oss", "")
                 }

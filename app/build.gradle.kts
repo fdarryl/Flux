@@ -27,6 +27,8 @@ android {
         viewBinding = true
         aidl = true
     }
+    // Возвращаем оригинальный namespace, так как код находится в этом пакете.
+    // Это позволит избежать конфликтов с R и BuildConfig классами.
     namespace = "io.nekohasekai.sagernet"
     packaging {
         jniLibs {
