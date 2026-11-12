@@ -44,7 +44,7 @@
     <queries>
         <intent>
             <!-- Уникальный экшен для плагинов Flux -->
-            <action android:name="${applicationId}.plugin.ACTION_NATIVE_PLUGIN" />
+            <action android:name="moe.nb4a.flux.plugin.ACTION_NATIVE_PLUGIN" />
         </intent>
     </queries>
 
@@ -119,9 +119,14 @@
             android:configChanges="uiMode" />
 
         <activity
+            android:name="io.nekohasekai.sagernet.ui.SettingsActivity"
+            android:configChanges="uiMode"
+            android:label="@string/settings" />
+
+        <activity
             android:name="io.nekohasekai.sagernet.ui.VpnRequestActivity"
             android:excludeFromRecents="true"
-            android:taskAffinity="${applicationId}.vpn" />
+            android:taskAffinity="moe.nb4a.flux.vpn" />
 
         <!-- Остальные активности -->
         <activity android:name="io.nekohasekai.sagernet.ui.profile.ConfigEditActivity" android:configChanges="uiMode" />
@@ -153,13 +158,12 @@
             android:label="@string/quick_toggle"
             android:launchMode="singleTask"
             android:process=":bg"
-            android:taskAffinity="${applicationId}.shortcut"
+            android:taskAffinity="moe.nb4a.flux.shortcut"
             android:theme="@android:style/Theme.Translucent.NoTitleBar">
             <intent-filter>
                 <action android:name="android.intent.action.CREATE_SHORTCUT" />
             </intent-filter>
         </activity>
-
         <activity
             android:name="io.nekohasekai.sagernet.ui.QuickEnableShortcut"
             android:excludeFromRecents="true"
@@ -167,9 +171,8 @@
             android:label="@string/quick_enable"
             android:launchMode="singleTask"
             android:process=":bg"
-            android:taskAffinity="${applicationId}.shortcut"
+            android:taskAffinity="moe.nb4a.flux.shortcut"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-
         <activity
             android:name="io.nekohasekai.sagernet.ui.QuickDisableShortcut"
             android:excludeFromRecents="true"
@@ -177,7 +180,7 @@
             android:label="@string/quick_disable"
             android:launchMode="singleTask"
             android:process=":bg"
-            android:taskAffinity="${applicationId}.shortcut"
+            android:taskAffinity="moe.nb4a.flux.shortcut"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <activity
@@ -218,7 +221,8 @@
             android:name="io.nekohasekai.sagernet.bg.ProxyService"
             android:exported="false"
             android:foregroundServiceType="systemExempted"
-            android:process=":bg" />
+            android:process=":bg"
+            tools:ignore="ForegroundServicePermission" />
 
         <service
             android:name="io.nekohasekai.sagernet.bg.VpnService"
@@ -226,10 +230,29 @@
             android:foregroundServiceType="systemExempted"
             android:label="@string/app_name"
             android:permission="android.permission.BIND_VPN_SERVICE"
-            android:process=":bg">
+            android:process=":bg"
+            tools:ignore="ForegroundServicePermission">
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
+        </service>
+
+        <service
+            android:name="io.nekohasekai.sagernet.bg.TileService"
+            android:exported="true"
+            android:foregroundServiceType="systemExempted"
+            android:icon="@drawable/ic_service_active"
+            android:label="@string/tile_title"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:process=":bg"
+            tools:ignore="ForegroundServicePermission"
+            tools:targetApi="n">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
         </service>
 
         <provider
@@ -241,6 +264,11 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/cache_paths" />
         </provider>
+
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            tools:node="remove" />
 
         <receiver
             android:name="io.nekohasekai.sagernet.BootReceiver"

@@ -1,11 +1,16 @@
 package io.nekohasekai.sagernet.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.RemoteException
+import android.view.Menu
+import android.view.MenuItem
 import android.widget.Button
+import android.widget.TextView
+import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -30,6 +35,7 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
 
     private val connection = SagerConnection(SagerConnection.CONNECTION_ID_MAIN_ACTIVITY_FOREGROUND, true)
     private var connectButton: Button? = null
+    private var statusLabel: TextView? = null
 
     private val connectLauncher = registerForActivityResult(VpnRequestActivity.StartService()) {
         if (it) snackbar(R.string.vpn_permission_denied).show()
@@ -39,13 +45,18 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main_flux)
 
-        // Запрос разрешения на уведомления для Android 13+
+        val toolbar = findViewById<Toolbar>(R.id.toolbar)
+        setSupportActionBar(toolbar)
+        supportActionBar?.title = "Flux"
+
+        // Request notification permission for Android 13+
         if (Build.VERSION.SDK_INT >= 33) {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
             }
         }
 
+        statusLabel = findViewById(R.id.statusLabel)
         connectButton = findViewById(R.id.connectButton)
         connectButton?.setOnClickListener {
             if (DataStore.serviceState.canStop) {
@@ -56,6 +67,19 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         }
 
         connection.connect(this, this)
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.main_menu, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == R.id.action_settings) {
+            startActivity(Intent(this, SettingsActivity::class.java))
+            return true
+        }
+        return super.onOptionsItemSelected(item)
     }
 
     private fun toggleVpn() {
@@ -104,12 +128,14 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
 
     private fun updateUi(state: BaseService.State) {
         runOnMainDispatcher {
-            connectButton?.text = when (state) {
-                BaseService.State.Connected -> "Disconnect"
-                BaseService.State.Connecting -> "Connecting..."
-                BaseService.State.Stopping -> "Stopping..."
-                else -> "Connect"
+            statusLabel?.text = when (state) {
+                BaseService.State.Connected -> "Connected"
+                BaseService.State.Connecting -> "Connecting"
+                BaseService.State.Stopping -> "Stopping"
+                else -> "Disconnected"
             }
+
+            connectButton?.text = if (state.canStop) "Disconnect" else "Connect"
             connectButton?.isEnabled = state != BaseService.State.Stopping
         }
     }
@@ -122,10 +148,10 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
 
     override fun onServiceConnected(service: ISagerNetService) {
         try {
-            val state = BaseService.State.values()[service.state]
+            val state = BaseService.State.entries[service.state]
             DataStore.serviceState = state
             updateUi(state)
-        } catch (e: RemoteException) {
+        } catch (_: RemoteException) {
             updateUi(BaseService.State.Idle)
         }
     }
