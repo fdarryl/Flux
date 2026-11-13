@@ -28,17 +28,48 @@
 
         <TextView
             android:id="@+id/statusLabel"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="32dp"
+            android:layout_marginBottom="16dp"
+            android:layout_marginHorizontal="32dp"
+            android:gravity="center"
             android:text="Disconnected"
             android:textAllCaps="true"
             android:letterSpacing="0.1"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Overline"
             android:textSize="14sp"
-            app:layout_constraintBottom_toTopOf="@+id/connectButton"
+            app:layout_constraintBottom_toTopOf="@+id/speedLayout"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent" />
+
+        <LinearLayout
+            android:id="@+id/speedLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="32dp"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            app:layout_constraintBottom_toTopOf="@+id/connectButton"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent">
+
+            <TextView
+                android:id="@+id/txSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="16dp"
+                android:text="▲ 0 B/s"
+                android:alpha="0.7"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/rxSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="▼ 0 B/s"
+                android:alpha="0.7"
+                android:textSize="12sp" />
+        </LinearLayout>
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/connectButton"

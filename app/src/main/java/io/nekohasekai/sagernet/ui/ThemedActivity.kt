@@ -1,13 +1,16 @@
 package io.nekohasekai.sagernet.ui
 
 import android.content.res.Configuration
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import android.widget.TextView
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import com.google.android.material.appbar.AppBarLayout
@@ -31,36 +34,45 @@ abstract class ThemedActivity : AppCompatActivity {
         }
         Theme.applyNightTheme()
 
+        // Enable Edge-to-Edge and make Nav Bar transparent
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.navigationBarColor = Color.TRANSPARENT
+        window.statusBarColor = Color.TRANSPARENT
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
+
         super.onCreate(savedInstanceState)
 
         uiMode = resources.configuration.uiMode
+        updateSystemBarIcons()
 
-        if (Build.VERSION.SDK_INT >= 35) {
-            ViewCompat.setOnApplyWindowInsetsListener(findViewById(android.R.id.content)) { _, insets ->
-                val top = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top
-                findViewById<AppBarLayout>(R.id.appbar)?.apply {
-                    updatePadding(top = top)
-//                Logs.w("appbar $top")
-                }
-//            findViewById<NavigationView>(R.id.nav_view)?.apply {
-//                updatePadding(top = top)
-//            }
-                insets
-            }
+        // Handle insets for AppBar to prevent overlap with Status Bar
+        ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { view, insets ->
+            val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            findViewById<AppBarLayout>(R.id.appbar)?.updatePadding(top = systemBars.top)
+            insets
         }
+    }
+
+    private fun updateSystemBarIcons() {
+        val isNightMode = (resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.isAppearanceLightStatusBars = !isNightMode
+        controller.isAppearanceLightNavigationBars = !isNightMode
     }
 
     override fun setTheme(resId: Int) {
         super.setTheme(resId)
-
         themeResId = resId
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-
         if (newConfig.uiMode != uiMode) {
             uiMode = newConfig.uiMode
+            updateSystemBarIcons()
             ActivityCompat.recreate(this)
         }
     }
@@ -72,6 +84,7 @@ abstract class ThemedActivity : AppCompatActivity {
         }
     }
 
-    internal open fun snackbarInternal(text: CharSequence): Snackbar = throw NotImplementedError()
+    internal open fun snackbarInternal(text: CharSequence): Snackbar = 
+        Snackbar.make(findViewById(android.R.id.content), text, Snackbar.LENGTH_LONG)
 
 }

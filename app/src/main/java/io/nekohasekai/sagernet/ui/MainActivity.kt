@@ -3,11 +3,14 @@ package io.nekohasekai.sagernet.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.RemoteException
+import android.text.format.Formatter
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.widget.Toolbar
@@ -19,6 +22,7 @@ import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
 import io.nekohasekai.sagernet.SagerNet
 import io.nekohasekai.sagernet.aidl.ISagerNetService
+import io.nekohasekai.sagernet.aidl.SpeedDisplayData
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.bg.SagerConnection
 import io.nekohasekai.sagernet.database.DataStore
@@ -26,6 +30,7 @@ import io.nekohasekai.sagernet.database.ProfileManager
 import io.nekohasekai.sagernet.database.ProxyEntity
 import io.nekohasekai.sagernet.database.SagerDatabase
 import io.nekohasekai.sagernet.fmt.ssh.SSHBean
+import io.nekohasekai.sagernet.ktx.getColorAttr
 import io.nekohasekai.sagernet.ktx.runOnMainDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -36,6 +41,9 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
     private val connection = SagerConnection(SagerConnection.CONNECTION_ID_MAIN_ACTIVITY_FOREGROUND, true)
     private var connectButton: Button? = null
     private var statusLabel: TextView? = null
+    private var speedLayout: View? = null
+    private var txSpeedLabel: TextView? = null
+    private var rxSpeedLabel: TextView? = null
 
     private val connectLauncher = registerForActivityResult(VpnRequestActivity.StartService()) {
         if (it) snackbar(R.string.vpn_permission_denied).show()
@@ -58,6 +66,10 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
 
         statusLabel = findViewById(R.id.statusLabel)
         connectButton = findViewById(R.id.connectButton)
+        speedLayout = findViewById(R.id.speedLayout)
+        txSpeedLabel = findViewById(R.id.txSpeed)
+        rxSpeedLabel = findViewById(R.id.rxSpeed)
+
         connectButton?.setOnClickListener {
             if (DataStore.serviceState.canStop) {
                 SagerNet.stopService()
@@ -84,7 +96,7 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
 
     private fun toggleVpn() {
         lifecycleScope.launch(Dispatchers.IO) {
-            setupDefaults()
+            // setupDefaults() call removed to honor user settings
 
             val groupId = DataStore.currentGroupId()
             val profiles = SagerDatabase.proxyDao.getByGroup(groupId)
@@ -115,35 +127,37 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         }
     }
 
-    private suspend fun setupDefaults() {
-        DataStore.serviceMode = Key.MODE_VPN
-        DataStore.proxyApps = false
-        DataStore.bypassLan = true
-        ProfileManager.getRules()
-        
-        if (DataStore.remoteDns.isBlank()) {
-            DataStore.remoteDns = "https://1.1.1.1/dns-query"
-        }
-    }
-
-    private fun updateUi(state: BaseService.State) {
+    private fun updateUi(state: BaseService.State, msg: String? = null) {
         runOnMainDispatcher {
-            statusLabel?.text = when (state) {
-                BaseService.State.Connected -> "Connected"
-                BaseService.State.Connecting -> "Connecting"
-                BaseService.State.Stopping -> "Stopping"
-                else -> "Disconnected"
+            if (msg != null && state != BaseService.State.Connected) {
+                statusLabel?.text = "Error: $msg"
+                statusLabel?.setTextColor(Color.RED)
+            } else {
+                statusLabel?.text = when (state) {
+                    BaseService.State.Connected -> "Connected"
+                    BaseService.State.Connecting -> "Connecting"
+                    BaseService.State.Stopping -> "Stopping"
+                    else -> "Disconnected"
+                }
+                statusLabel?.setTextColor(getColorAttr(android.R.attr.textColorPrimary))
             }
 
             connectButton?.text = if (state.canStop) "Disconnect" else "Connect"
             connectButton?.isEnabled = state != BaseService.State.Stopping
+            speedLayout?.visibility = if (state == BaseService.State.Connected) View.VISIBLE else View.GONE
         }
     }
 
     override fun stateChanged(state: BaseService.State, profileName: String?, msg: String?) {
         DataStore.serviceState = state
-        updateUi(state)
-        if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
+        updateUi(state, msg)
+    }
+
+    override fun cbSpeedUpdate(stats: SpeedDisplayData) {
+        runOnMainDispatcher {
+            txSpeedLabel?.text = "▲ ${Formatter.formatFileSize(this@MainActivity, stats.txRateProxy)}/s"
+            rxSpeedLabel?.text = "▼ ${Formatter.formatFileSize(this@MainActivity, stats.rxRateProxy)}/s"
+        }
     }
 
     override fun onServiceConnected(service: ISagerNetService) {
