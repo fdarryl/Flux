@@ -70,9 +70,9 @@ jobs:
           ./run init action gradle
           VERSION=$(./gradlew -q app:printVersion | tail -n 1)
           ./gradlew app:assembleOssRelease
-          echo "v${VERSION}" > app/build/outputs/apk/release-tag.txt
           APK=$(find app/build/outputs/apk -name '*arm64-v8a*.apk')
           APK=$(dirname $APK)
+          echo "v${VERSION}" > "$APK/release-tag.txt"
           echo "APK=$APK" >> $GITHUB_ENV
       - uses: actions/upload-artifact@v4
         with:
