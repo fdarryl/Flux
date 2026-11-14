@@ -77,6 +77,12 @@ jobs:
           echo "sdk.dir=${ANDROID_HOME}" > local.properties
           echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
           echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+          echo "${{ secrets.LOCAL_PROPERTIES }}" | base64 --decode > signing.properties
+          STORE_PASS=$(sed -n 's/^KEYSTORE_PASS=//p' signing.properties | tr -d '\r')
+          ALIAS=$(sed -n 's/^ALIAS_NAME=//p' signing.properties | tr -d '\r')
+          test -n "$STORE_PASS" && test -n "$ALIAS"
+          keytool -list -keystore release.keystore -storepass "$STORE_PASS" -alias "$ALIAS" >/dev/null
+          rm -f signing.properties
           export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
           ./run init action gradle
           ./gradlew app:assembleOssRelease
@@ -146,6 +152,12 @@ jobs:
           echo "sdk.dir=${ANDROID_HOME}" > local.properties
           echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
           echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 --decode > release.keystore
+          echo "${{ secrets.LOCAL_PROPERTIES }}" | base64 --decode > signing.properties
+          STORE_PASS=$(sed -n 's/^KEYSTORE_PASS=//p' signing.properties | tr -d '\r')
+          ALIAS=$(sed -n 's/^ALIAS_NAME=//p' signing.properties | tr -d '\r')
+          test -n "$STORE_PASS" && test -n "$ALIAS"
+          keytool -list -keystore release.keystore -storepass "$STORE_PASS" -alias "$ALIAS" >/dev/null
+          rm -f signing.properties
           export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
           ./run init action gradle
           ./gradlew bundlePlayRelease
