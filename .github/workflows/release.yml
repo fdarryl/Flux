@@ -3,8 +3,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Deprecated: release tag is read from Gradle"
-        required: false
+        description: "Release Tag"
+        required: true
       publish:
         description: "Publish: If want ignore"
         required: false
@@ -68,11 +68,9 @@ jobs:
           echo "ndk.dir=${ANDROID_HOME}/ndk/25.0.8775105" >> local.properties
           export LOCAL_PROPERTIES="${{ secrets.LOCAL_PROPERTIES }}"
           ./run init action gradle
-          VERSION=$(./gradlew -q app:printVersion | tail -n 1)
           ./gradlew app:assembleOssRelease
           APK=$(find app/build/outputs/apk -name '*arm64-v8a*.apk')
           APK=$(dirname $APK)
-          echo "v${VERSION}" > "$APK/release-tag.txt"
           echo "APK=$APK" >> $GITHUB_ENV
       - uses: actions/upload-artifact@v4
         with:
@@ -95,13 +93,12 @@ jobs:
           path: artifacts
       - name: Release
         run: |
-          RELEASE_TAG=$(cat "$(find artifacts -name release-tag.txt -print -quit)")
           wget -O ghr.tar.gz https://github.com/tcnksm/ghr/releases/download/v0.13.0/ghr_v0.13.0_linux_amd64.tar.gz
           tar -xvf ghr.tar.gz
           mv ghr*linux_amd64/ghr .
           mkdir apks
           find artifacts -name "*.apk" -exec cp {} apks \;
-          ./ghr -delete -t "${{ github.token }}" -n "$RELEASE_TAG" "$RELEASE_TAG" apks
+          ./ghr -delete -t "${{ github.token }}" -n "${{ github.event.inputs.tag }}" "${{ github.event.inputs.tag }}" apks
   play:
     name: Build Play Bundle
     if: github.event.inputs.play != 'y'
