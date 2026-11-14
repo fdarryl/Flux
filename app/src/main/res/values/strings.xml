@@ -11,6 +11,11 @@
     <string name="update_available">Download update</string>
     <string name="update_notification_title">New Flux version available</string>
     <string name="update_notification_text">Version %s is ready to download</string>
+    <string name="update_downloading">Downloading version %s</string>
+    <string name="update_progress">Downloaded: %d%%</string>
+    <string name="update_ready">Download complete</string>
+    <string name="update_failed">Download failed: %s</string>
+    <string name="install_update">Install update</string>
     <string name="version_x">Version (%s)</string>
     <string name="logcat">Export debug information</string>
     <string name="menu_configuration">Configuration</string>

@@ -123,6 +123,10 @@
             android:name="io.nekohasekai.sagernet.ui.SettingsActivity"
             android:configChanges="uiMode"
             android:label="@string/settings" />
+        <activity
+            android:name="io.nekohasekai.sagernet.ui.UpdateActivity"
+            android:configChanges="uiMode"
+            android:parentActivityName="io.nekohasekai.sagernet.ui.MainActivity" />
 
         <activity
             android:name="io.nekohasekai.sagernet.ui.VpnRequestActivity"

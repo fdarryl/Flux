@@ -146,15 +146,7 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
             }
             R.id.action_update -> {
                 val release = availableRelease ?: return true
-                lifecycleScope.launch {
-                    updateMenuItem?.isEnabled = false
-                    try {
-                        appUpdater.downloadAndInstall(release)
-                    } catch (e: Exception) {
-                        snackbar("Update failed: ${e.message}").show()
-                        updateMenuItem?.isEnabled = true
-                    }
-                }
+                startActivity(UpdateActivity.intent(this, release))
                 return true
             }
         }

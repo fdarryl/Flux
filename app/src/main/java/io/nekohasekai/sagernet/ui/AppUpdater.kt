@@ -10,7 +10,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.FileProvider
 import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.R
-import io.nekohasekai.sagernet.SagerNet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -89,7 +88,17 @@ class AppUpdater(private val context: Context) {
             !NotificationManagerCompat.from(context).areNotificationsEnabled()
         ) return
 
-        val pendingIntent = SagerNet.configureIntent(context)
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            context,
+            notificationId,
+            UpdateActivity.intent(context, release),
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    android.app.PendingIntent.FLAG_IMMUTABLE
+                } else {
+                    0
+                }
+        )
         val notification = NotificationCompat.Builder(context, "app-updates")
             .setSmallIcon(R.drawable.ic_baseline_download_24)
             .setContentTitle(context.getString(R.string.update_notification_title))
@@ -102,39 +111,65 @@ class AppUpdater(private val context: Context) {
         preferences.edit().putString(notifiedVersionKey, release.version).apply()
     }
 
-    suspend fun downloadAndInstall(release: AppRelease) = withContext(Dispatchers.IO) {
-        val file = File(context.cacheDir, release.fileName)
+    suspend fun download(
+        release: AppRelease,
+        onProgress: (downloaded: Long, total: Long) -> Unit
+    ): File = withContext(Dispatchers.IO) {
+        val updateDirectory = File(context.filesDir, "updates").apply { mkdirs() }
+        val file = File(updateDirectory, release.fileName)
+        if (file.isFile && file.length() > 0) {
+            onProgress(file.length(), file.length())
+            return@withContext file
+        }
+        val temporaryFile = File(updateDirectory, "${release.fileName}.part")
         val connection = URL(release.downloadUrl).openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = 15_000
             connection.readTimeout = 60_000
             connection.setRequestProperty("Accept", "application/octet-stream")
             if (connection.responseCode !in 200..299) error("Download failed: HTTP ${connection.responseCode}")
+            val total = connection.contentLengthLong
+            var downloaded = 0L
             connection.inputStream.use { input ->
-                file.outputStream().use { output -> input.copyTo(output) }
+                temporaryFile.outputStream().use { output ->
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    var count: Int
+                    while (input.read(buffer).also { count = it } != -1) {
+                        output.write(buffer, 0, count)
+                        downloaded += count
+                        onProgress(downloaded, total)
+                    }
+                }
+            }
+            if (!temporaryFile.renameTo(file)) {
+                temporaryFile.delete()
+                error("Could not save downloaded APK")
             }
         } finally {
             connection.disconnect()
         }
+        file
+    }
 
-        withContext(Dispatchers.Main) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-                !context.packageManager.canRequestPackageInstalls()
-            ) {
-                context.startActivity(
-                    Intent(
-                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                        Uri.parse("package:${context.packageName}")
-                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                )
-                return@withContext
-            }
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.cache", file)
+    fun install(file: File) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
+            !context.packageManager.canRequestPackageInstalls()
+        ) {
             context.startActivity(
-                Intent(Intent.ACTION_VIEW)
-                    .setDataAndType(uri, "application/vnd.android.package-archive")
-                    .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                Intent(
+                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:${context.packageName}")
+                )
             )
+            return
         }
+        require(file.isFile && file.length() > 0) { "Downloaded APK is missing" }
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.cache", file)
+        context.startActivity(
+            Intent(Intent.ACTION_INSTALL_PACKAGE)
+                .setDataAndType(uri, "application/vnd.android.package-archive")
+                .putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     }
 }
