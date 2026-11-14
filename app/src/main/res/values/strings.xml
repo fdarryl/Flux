@@ -8,6 +8,9 @@
     <string name="telegram">Telegram update channel</string>
     <string name="oss_licenses">Open source licenses</string>
     <string name="app_version">Version</string>
+    <string name="update_available">Download update</string>
+    <string name="update_notification_title">New Flux version available</string>
+    <string name="update_notification_text">Version %s is ready to download</string>
     <string name="version_x">Version (%s)</string>
     <string name="logcat">Export debug information</string>
     <string name="menu_configuration">Configuration</string>

@@ -183,6 +183,10 @@ class SagerNet : Application(),
                             "connection-test",
                             application.getText(R.string.connection_test),
                             NotificationManager.IMPORTANCE_DEFAULT
+                        ), NotificationChannel(
+                            "app-updates",
+                            application.getText(R.string.update_available),
+                            NotificationManager.IMPORTANCE_DEFAULT
                         )
                     )
                 )

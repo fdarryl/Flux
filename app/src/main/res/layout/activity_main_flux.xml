@@ -28,48 +28,42 @@
 
         <TextView
             android:id="@+id/statusLabel"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:layout_marginHorizontal="32dp"
-            android:gravity="center"
-            android:text="Disconnected"
+            android:layout_marginBottom="8dp"
+            android:text="OFFLINE"
             android:textAllCaps="true"
             android:letterSpacing="0.1"
             android:textAppearance="@style/TextAppearance.MaterialComponents.Overline"
-            android:textSize="14sp"
-            app:layout_constraintBottom_toTopOf="@+id/speedLayout"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            app:layout_constraintBottom_toTopOf="@+id/searchStatusLabel"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent" />
 
-        <LinearLayout
-            android:id="@+id/speedLayout"
+        <TextView
+            android:id="@+id/searchStatusLabel"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="32dp"
-            android:orientation="horizontal"
+            android:layout_marginBottom="8dp"
+            android:alpha="0.8"
+            android:text=""
+            android:textColor="?attr/colorAccent"
+            android:textSize="14sp"
+            app:layout_constraintBottom_toTopOf="@+id/searchProgress"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent" />
+
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/searchProgress"
+            android:layout_width="150dp"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:indeterminate="true"
             android:visibility="gone"
             app:layout_constraintBottom_toTopOf="@+id/connectButton"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent">
-
-            <TextView
-                android:id="@+id/txSpeed"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="16dp"
-                android:text="▲ 0 B/s"
-                android:alpha="0.7"
-                android:textSize="12sp" />
-
-            <TextView
-                android:id="@+id/rxSpeed"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="▼ 0 B/s"
-                android:alpha="0.7"
-                android:textSize="12sp" />
-        </LinearLayout>
+            app:layout_constraintStart_toStartOf="parent" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/connectButton"
@@ -80,12 +74,61 @@
             android:insetBottom="0dp"
             app:shapeAppearanceOverlay="@style/ShapeAppearance.Flux.Circular"
             android:text="Connect"
-            android:textSize="20sp"
-            app:strokeWidth="2dp"
+            android:textSize="22sp"
+            app:strokeWidth="2.5dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/menuInputLayout"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            android:minWidth="200dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/connectButton">
+
+            <AutoCompleteTextView
+                android:id="@+id/modeSelector"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="none"
+                android:text="Франция SSH" />
+
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <LinearLayout
+            android:id="@+id/speedLayout"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/menuInputLayout">
+
+            <TextView
+                android:id="@+id/txSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="16dp"
+                android:text="▲ 0 B/s"
+                android:alpha="0.7"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/rxSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="▼ 0 B/s"
+                android:alpha="0.7"
+                android:textSize="13sp" />
+        </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
