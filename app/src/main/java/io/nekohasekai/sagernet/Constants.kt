@@ -151,6 +151,9 @@ object Key {
 
     const val APP_TLS_VERSION = "appTLSVersion"
     const val ENABLE_CLASH_API = "enableClashAPI"
+
+    const val SSH_ACCESS_KEY = "sshAccessKey"
+    const val SSH_CONFIGS = "sshConfigs"
 }
 
 object TunImplementation {

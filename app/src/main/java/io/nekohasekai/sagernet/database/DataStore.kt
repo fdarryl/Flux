@@ -12,6 +12,7 @@ import io.nekohasekai.sagernet.bg.VpnService
 import io.nekohasekai.sagernet.database.preference.OnPreferenceDataStoreChangeListener
 import io.nekohasekai.sagernet.database.preference.PublicDatabase
 import io.nekohasekai.sagernet.database.preference.RoomPreferenceDataStore
+import io.nekohasekai.sagernet.fmt.ssh.SSHBean
 import io.nekohasekai.sagernet.ktx.boolean
 import io.nekohasekai.sagernet.ktx.int
 import io.nekohasekai.sagernet.ktx.long
@@ -278,6 +279,70 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var subscriptionAutoUpdateDelay by profileCacheStore.stringToInt(Key.SUBSCRIPTION_AUTO_UPDATE_DELAY) { 360 }
 
     var rulesFirstCreate by profileCacheStore.boolean("rulesFirstCreate")
+
+    var sshAccessKey by configurationStore.string(Key.SSH_ACCESS_KEY) { "" }
+    var sshConfigs by configurationStore.string(Key.SSH_CONFIGS) { "{}" }
+    var sshSetupDone by configurationStore.boolean("sshSetupDone") { false }
+
+    fun isFirstLaunch(): Boolean = !sshSetupDone
+
+    fun ensureDefaultSshConfig() {
+        val map = getSshConfigMap().toMutableMap()
+        if (!map.containsKey("test")) {
+            map["test"] = "serverAddress=ssh-bithop.alwaysdata.net\nserverPort=22\nusername=bithop\npassword=1q3q5q7Q!!!\nauthType=PASSWORD\nname=Flux SSH"
+        }
+        setSshConfigMap(map)
+    }
+
+    fun getSshConfigMap(): Map<String, String> {
+        val raw = sshConfigs.trim()
+        if (raw.isEmpty() || raw == "{}") return emptyMap()
+        return try {
+            val json = org.json.JSONObject(raw)
+            json.keys().asSequence().associateWith { json.getString(it) }
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    fun setSshConfigMap(map: Map<String, String>) {
+        val json = org.json.JSONObject()
+        map.forEach { (key, value) -> json.put(key, value) }
+        sshConfigs = json.toString()
+    }
+
+    fun getSshConfigForCurrentKey(): String? {
+        val key = sshAccessKey.trim().ifEmpty { "test" }
+        return getSshConfigMap()[key]
+    }
+
+    fun parseSshConfig(rawConfig: String): SSHBean? {
+        val bean = SSHBean()
+        rawConfig.split("\n").forEach { line ->
+            val parts = line.split("=", limit = 2)
+            if (parts.size != 2) return@forEach
+            val key = parts[0].trim()
+            val value = parts[1].trim()
+            when (key) {
+                "serverAddress" -> bean.serverAddress = value
+                "serverPort" -> bean.serverPort = value.toIntOrNull() ?: 22
+                "username" -> bean.username = value
+                "password" -> bean.password = value
+                "privateKey" -> bean.privateKey = value
+                "privateKeyPassphrase" -> bean.privateKeyPassphrase = value
+                "publicKey" -> bean.publicKey = value
+                "authType" -> bean.authType = when (value.uppercase()) {
+                    "PASSWORD" -> SSHBean.AUTH_TYPE_PASSWORD
+                    "PRIVATE_KEY" -> SSHBean.AUTH_TYPE_PRIVATE_KEY
+                    "NONE" -> SSHBean.AUTH_TYPE_NONE
+                    else -> bean.authType
+                }
+                "name" -> bean.name = value
+            }
+        }
+        if (bean.serverAddress.isBlank() || bean.username.isBlank()) return null
+        return bean
+    }
 
     override fun onPreferenceDataStoreChanged(store: PreferenceDataStore, key: String) {
     }

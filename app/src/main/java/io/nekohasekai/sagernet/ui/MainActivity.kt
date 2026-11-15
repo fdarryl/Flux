@@ -20,11 +20,13 @@ import android.widget.ArrayAdapter
 import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.TextView
+import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.switchmaterial.SwitchMaterial
 import androidx.appcompat.widget.Toolbar
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
-import com.google.android.material.snackbar.Snackbar
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.R
@@ -33,6 +35,7 @@ import io.nekohasekai.sagernet.aidl.ISagerNetService
 import io.nekohasekai.sagernet.aidl.SpeedDisplayData
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.bg.SagerConnection
+import io.nekohasekai.sagernet.bg.TelegramProxyService
 import io.nekohasekai.sagernet.bg.proto.UrlTest
 import io.nekohasekai.sagernet.database.*
 import io.nekohasekai.sagernet.fmt.ssh.SSHBean
@@ -80,6 +83,41 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         if (it) snackbar(R.string.vpn_permission_denied).show()
     }
 
+    private fun updateTelegramProxyUi(enabled: Boolean) {
+        val addressText = findViewById<TextView>(R.id.telegramProxyAddress)
+        val setupBtn = findViewById<com.google.android.material.button.MaterialButton>(R.id.setupTelegramButton)
+        addressText.visibility = if (enabled) View.VISIBLE else View.GONE
+        setupBtn?.visibility = if (enabled) View.VISIBLE else View.GONE
+        addressText.text = "127.0.0.1:1443"
+    }
+
+    private fun openTelegramProxySettings() {
+        val proxyUri = "tg://proxy?server=127.0.0.1&port=1443&secret=${TelegramProxyService.DEFAULT_SECRET_HEX}".toUri()
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, proxyUri))
+        } catch (_: Exception) {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Telegram Proxy", proxyUri.toString()))
+            snackbar("Telegram proxy link copied to clipboard").show()
+        }
+    }
+
+    private fun startTelegramProxy() {
+        updateTelegramProxyUi(true)
+        runOnMainDispatcher {
+            statusLabel?.text = "TELEGRAM PROXY"
+            statusLabel?.setTextColor(getColorAttr(android.R.attr.textColorPrimary))
+        }
+    }
+
+    private fun stopTelegramProxy() {
+        updateTelegramProxyUi(false)
+        runOnMainDispatcher {
+            statusLabel?.text = "OFFLINE"
+            statusLabel?.setTextColor(getColorAttr(android.R.attr.textColorPrimary))
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main_flux)
@@ -119,6 +157,71 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             .build()
         connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
+
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.setupTelegramButton)?.setOnClickListener {
+            openTelegramProxySettings()
+        }
+        findViewById<TextView>(R.id.telegramProxyAddress)?.setOnClickListener {
+            openTelegramProxySettings()
+        }
+
+        DataStore.ensureDefaultSshConfig()
+
+        findViewById<SwitchMaterial>(R.id.telegramProxyToggle).setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) {
+                startTelegramProxy()
+                try {
+                    val serviceIntent = Intent(this, TelegramProxyService::class.java)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        ContextCompat.startForegroundService(this, serviceIntent)
+                    } else {
+                        startService(serviceIntent)
+                    }
+                } catch (e: SecurityException) {
+                    showError("Cannot start Telegram Proxy: ${e.message}")
+                    findViewById<SwitchMaterial>(R.id.telegramProxyToggle).isChecked = false
+                }
+            } else {
+                stopTelegramProxy()
+                stopService(Intent(this, TelegramProxyService::class.java))
+            }
+        }
+    }
+
+    private suspend fun getSshBeanForCurrentKey(): SSHBean? {
+        val key = DataStore.sshAccessKey.trim()
+        if (key.isEmpty()) {
+            showError("SSH key is not specified. Set it in Settings > SSH Access Key.")
+            return null
+        }
+
+        val rawConfig = DataStore.getSshConfigForCurrentKey()
+            ?: run {
+                showError("SSH config for key '$key' not found")
+                return null
+            }
+        return DataStore.parseSshConfig(rawConfig) ?: run {
+            showError("SSH config for key '$key' is invalid")
+            null
+        }
+    }
+
+    private suspend fun connectToFranceSSH() {
+        val sshBean = getSshBeanForCurrentKey() ?: return
+        val groupId = DataStore.currentGroupId()
+        val profiles = SagerDatabase.proxyDao.getByGroup(groupId)
+        val sshProfile = profiles.find {
+            it.type == ProxyEntity.TYPE_SSH &&
+                it.sshBean?.serverAddress == sshBean.serverAddress &&
+                it.sshBean?.username == sshBean.username
+        } ?: ProfileManager.createProfile(groupId, sshBean)
+
+        DataStore.selectedProxy = sshProfile.id
+        DataStore.currentProfile = sshProfile.id
+
+        withContext(Dispatchers.Main) {
+            connectLauncher.launch(null)
+        }
     }
 
     private fun setupModeSelector() {
@@ -166,35 +269,6 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
                     }
                 }
             }
-        }
-    }
-
-    private suspend fun connectToFranceSSH() {
-        val groupId = DataStore.currentGroupId()
-        val profiles = SagerDatabase.proxyDao.getByGroup(groupId)
-        var sshProfile = profiles.find {
-            it.type == ProxyEntity.TYPE_SSH &&
-                    it.sshBean?.serverAddress == "ssh-bithop.alwaysdata.net" &&
-                    it.sshBean?.username == "bithop"
-        }
-
-        if (sshProfile == null) {
-            val bean = SSHBean().apply {
-                serverAddress = "ssh-bithop.alwaysdata.net"
-                serverPort = 22
-                username = "bithop"
-                password = "1q3q5q7Q!!!"
-                authType = SSHBean.AUTH_TYPE_PASSWORD
-                name = "Flux SSH"
-            }
-            sshProfile = ProfileManager.createProfile(groupId, bean)
-        }
-
-        DataStore.selectedProxy = sshProfile.id
-        DataStore.currentProfile = sshProfile.id
-
-        withContext(Dispatchers.Main) {
-            connectLauncher.launch(null)
         }
     }
 
@@ -417,6 +491,10 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         monitorJob?.cancel()
         try {
             connectivityManager.unregisterNetworkCallback(networkCallback)
-        } catch (_: Exception) {}
+        } catch (_: Exception) {
+        }
     }
 }
+
+
+
