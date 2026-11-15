@@ -200,6 +200,22 @@ object ProfileManager {
                     outbound = -2
                 )
             )
+
+            createRule(
+                RuleEntity(
+                    name = app.getString(R.string.route_bypass_domain, "Russia"),
+                    domains = "geosite:ru",
+                    outbound = -1
+                ), false
+            )
+            createRule(
+                RuleEntity(
+                    name = app.getString(R.string.route_bypass_ip, "Russia"),
+                    ip = "geoip:ru",
+                    outbound = -1
+                ), false
+            )
+
             val fuckedCountry = mutableListOf("cn:中国")
             if (Locale.getDefault().country != Locale.CHINA.country) {
                 // 非中文用户

@@ -44,6 +44,32 @@ object DataStore : OnPreferenceDataStoreChangeListener {
 
     var runningTest = false
 
+    private val defaultRussianAppPackages = listOf(
+        "com.vkontakte.android",
+        "com.yandex.browser",
+        "com.yandex.browser.alpha",
+        "com.yandex.browser.beta",
+        "ru.yandex.searchplugin",
+        "ru.yandex.mail",
+        "ru.yandex.yandexmaps",
+        "ru.sberbankmobile",
+        "ru.mail",
+        "ru.kinopoisk",
+        "ru.ozon.app.android",
+        "com.ozon.app.android",
+        "ru.tinkoff",
+        "ru.tinkoff.invest",
+        "ru.gazprombank.mobile",
+        "ru.vtb.mobilebank",
+        "ru.alfabank.mobile.android",
+        "ru.mts.mobilebank",
+        "org.telegram.messenger",
+        "org.telegram.plus",
+        "com.whatsapp",
+        "com.instagram.android",
+        "com.facebook.katana",
+    )
+
     fun currentGroupId(): Long {
         val currentSelected = configurationStore.getLong(Key.PROFILE_GROUP, -1)
         if (currentSelected > 0L) return currentSelected

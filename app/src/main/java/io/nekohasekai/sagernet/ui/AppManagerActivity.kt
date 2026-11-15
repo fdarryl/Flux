@@ -218,6 +218,33 @@ class AppManagerActivity : ThemedActivity() {
         if (!DataStore.proxyApps) {
             DataStore.proxyApps = true
         }
+        if (DataStore.individual.isBlank()) {
+            DataStore.individual = listOf(
+                "com.vkontakte.android",
+                "com.yandex.browser",
+                "com.yandex.browser.alpha",
+                "com.yandex.browser.beta",
+                "ru.yandex.searchplugin",
+                "ru.yandex.mail",
+                "ru.yandex.yandexmaps",
+                "ru.sberbankmobile",
+                "ru.mail",
+                "ru.kinopoisk",
+                "ru.ozon.app.android",
+                "com.ozon.app.android",
+                "ru.tinkoff",
+                "ru.tinkoff.invest",
+                "ru.gazprombank.mobile",
+                "ru.vtb.mobilebank",
+                "ru.alfabank.mobile.android",
+                "ru.mts.mobilebank",
+                "org.telegram.messenger",
+                "org.telegram.plus",
+                "com.whatsapp",
+                "com.instagram.android",
+                "com.facebook.katana",
+            ).joinToString("\n")
+        }
 
         binding.bypassGroup.check(if (DataStore.bypass) R.id.appProxyModeBypass else R.id.appProxyModeOn)
         binding.bypassGroup.setOnCheckedChangeListener { _, checkedId ->
