@@ -134,6 +134,7 @@ class TelegramProxyService : Service() {
 
     private data class ClientHandshakeResult(
         val dcId: Int,
+        val dcIdx: Int,
         val protoTag: ByteArray,
         val cltDec: Cipher,
         val cltEnc: Cipher
@@ -153,7 +154,12 @@ class TelegramProxyService : Service() {
     private val cfDomainsList = CopyOnWriteArrayList<String>(DEFAULT_CF_DOMAINS)
 
     private val wsClient by lazy {
+        val dispatcher = okhttp3.Dispatcher().apply {
+            maxRequests = 128
+            maxRequestsPerHost = 32
+        }
         OkHttpClient.Builder()
+            .dispatcher(dispatcher)
             .connectTimeout(4, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .pingInterval(20, TimeUnit.SECONDS)
@@ -501,14 +507,14 @@ class TelegramProxyService : Service() {
                     val cltEnc = Cipher.getInstance("AES/CTR/NoPadding").apply {
                         init(Cipher.ENCRYPT_MODE, SecretKeySpec(encKey, "AES"), IvParameterSpec(encIv))
                     }
-                    return ClientHandshakeResult(dcId, protoTag, decryptor, cltEnc)
+                    return ClientHandshakeResult(dcId, dcIdx.toInt(), protoTag, decryptor, cltEnc)
                 }
             } catch (_: Exception) {}
         }
         return null
     }
 
-    private fun generateRelayInit(protoTag: ByteArray, dcId: Int): RelayInitResult {
+    private fun generateRelayInit(protoTag: ByteArray, dcIdx: Int): RelayInitResult {
         val rnd = ByteArray(64)
         val secureRandom = SecureRandom()
         while (true) {
@@ -538,7 +544,7 @@ class TelegramProxyService : Service() {
 
         val tailPlain = ByteArray(8)
         System.arraycopy(protoTag, 0, tailPlain, 0, 4)
-        val dcShort = dcId.toShort()
+        val dcShort = dcIdx.toShort()
         tailPlain[4] = (dcShort.toInt() and 0xFF).toByte()
         tailPlain[5] = ((dcShort.toInt() shr 8) and 0xFF).toByte()
         tailPlain[6] = rnd[62]
@@ -558,7 +564,7 @@ class TelegramProxyService : Service() {
         handshake: ClientHandshakeResult,
         targetDomain: String
     ): Boolean {
-        val (relayInit, tgEnc, tgDec) = generateRelayInit(handshake.protoTag, handshake.dcId)
+        val (relayInit, tgEnc, tgDec) = generateRelayInit(handshake.protoTag, handshake.dcIdx)
         val splitter = MsgSplitter(handshake.protoTag)
         val opened = CountDownLatch(1)
         val finished = CountDownLatch(1)

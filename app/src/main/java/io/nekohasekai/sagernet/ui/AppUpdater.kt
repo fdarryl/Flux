@@ -63,18 +63,38 @@ class AppUpdater(private val context: Context) {
             val version = release.optString("tag_name")
             if (version.isBlank() || !isNewer(version)) return@withContext null
 
-            val abi = currentAbi()
             val assets = release.optJSONArray("assets") ?: return@withContext null
+            var targetAsset: JSONObject? = null
+
+            // 1. Приоритет: универсальный APK для совместимости со всеми архитектурами
             for (index in 0 until assets.length()) {
                 val asset = assets.getJSONObject(index)
                 val name = asset.optString("name")
-                if (name.endsWith(".apk", true) && name.contains(abi)) {
-                    return@withContext AppRelease(
-                        version,
-                        asset.optString("browser_download_url"),
-                        name
-                    )
+                if (name.endsWith(".apk", true) && name.contains("universal", ignoreCase = true)) {
+                    targetAsset = asset
+                    break
                 }
+            }
+
+            // 2. Фоллбэк: APK под архитектуру устройства, если универсальный не найден
+            if (targetAsset == null) {
+                val abi = currentAbi()
+                for (index in 0 until assets.length()) {
+                    val asset = assets.getJSONObject(index)
+                    val name = asset.optString("name")
+                    if (name.endsWith(".apk", true) && name.contains(abi)) {
+                        targetAsset = asset
+                        break
+                    }
+                }
+            }
+
+            if (targetAsset != null) {
+                return@withContext AppRelease(
+                    version,
+                    targetAsset.optString("browser_download_url"),
+                    targetAsset.optString("name")
+                )
             }
             null
         } finally {
