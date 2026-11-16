@@ -18,6 +18,7 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import okio.ByteString.Companion.encodeUtf8
 import okio.ByteString.Companion.toByteString
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -60,26 +61,26 @@ class TelegramProxyService : Service() {
         )
 
         private val DEFAULT_CF_DOMAINS = listOf(
-            "noskomnadzor.co.uk",
-            "cakeisalie.co.uk",
-            "pclead.co.uk",
             "offshor.co.uk",
+            "pclead.co.uk",
             "lovetrue.co.uk",
             "sorokdva.co.uk",
-            "pyatdesyatdva.co.uk",
-            "kartoshka.co.uk",
-            "sorokodin.co.uk",
-            "pyatdesyatodin.co.uk",
+            "stopblocking.co.uk",
+            "nothingthere.co.uk",
+            "onedaychamp.co.uk",
+            "pomogite.co.uk",
+            "fixtelega.co.uk",
             "notelega.co.uk",
             "ebally.co.uk",
             "nebally.co.uk",
             "havegreatday.co.uk",
-            "pomogite.co.uk",
-            "fixtelega.co.uk",
             "sadnews.co.uk",
-            "onedaychamp.co.uk",
-            "stopblocking.co.uk",
-            "nothingthere.co.uk"
+            "pyatdesyatodin.co.uk",
+            "kartoshka.co.uk",
+            "cakeisalie.co.uk",
+            "sorokodin.co.uk",
+            "noskomnadzor.co.uk",
+            "pyatdesyatdva.co.uk"
         )
 
         private val KNOWN_SECRETS = listOf(
@@ -160,9 +161,11 @@ class TelegramProxyService : Service() {
         }
         OkHttpClient.Builder()
             .dispatcher(dispatcher)
-            .connectTimeout(4, TimeUnit.SECONDS)
+            .connectTimeout(3, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
+            .writeTimeout(0, TimeUnit.MILLISECONDS)
             .pingInterval(20, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(false)
             .build()
     }
 
@@ -240,9 +243,10 @@ class TelegramProxyService : Service() {
                             .filter { it.contains(".") && it.length in 4..253 }
                             .toList()
                         if (decoded.size >= 3) {
+                            val merged = (DEFAULT_CF_DOMAINS + decoded).distinct()
                             cfDomainsList.clear()
-                            cfDomainsList.addAll(decoded)
-                            android.util.Log.i("TG_PROXY", "Refreshed ${decoded.size} CF proxy domains from GitHub")
+                            cfDomainsList.addAll(merged)
+                            android.util.Log.i("TG_PROXY", "Refreshed ${merged.size} CF proxy domains from GitHub (kept fast ones first)")
                         }
                     }
                 }
@@ -264,7 +268,7 @@ class TelegramProxyService : Service() {
                     try {
                         val client = s.accept()
                         client.tcpNoDelay = true
-                        client.soTimeout = 15000
+                        client.soTimeout = 0
                         workerPool.execute { handleClient(client) }
                     } catch (_: SocketException) {
                         break
@@ -349,20 +353,44 @@ class TelegramProxyService : Service() {
             // Remove timeout for active streaming session
             try { client.soTimeout = 0 } catch (_: Exception) {}
 
-            // 4. Try connecting via WebSocket to CF-proxied endpoints or direct
-            val domains = domainsForDc(targetDc)
-            for (domain in domains) {
-                if (isEndpointCoolingDown(domain)) continue
-                val ok = bridgeWs(client, clientIn, clientOut, handshake.copy(dcId = targetDc), domain)
-                if (ok) {
-                    clearEndpointCooldown(domain)
-                    val base = extractBaseDomain(domain)
-                    if (base != null && !base.endsWith("telegram.org")) {
-                        activeCfDomain[targetDc] = base
+            // 4. Try fast racing WebSocket connection to CF-proxied endpoints
+            val session = connectFastWs(clientOut, handshake.copy(dcId = targetDc), targetDc)
+            if (session != null) {
+                val splitter = MsgSplitter(handshake.protoTag)
+                val upstream = Thread {
+                    try {
+                        val buf = ByteArray(64 * 1024)
+                        while (session.running.get()) {
+                            val n = clientIn.read(buf)
+                            if (n <= 0) break
+                            val chunk = buf.copyOf(n)
+                            val plain = handshake.cltDec.update(chunk)
+                            val tgCipher = session.tgEnc.update(plain)
+                            val parts = splitter.split(tgCipher, plain)
+                            for (part in parts) {
+                                if (!session.ws.send(part.toByteString())) {
+                                    session.running.set(false)
+                                    break
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {} finally {
+                        session.running.set(false)
+                        val tail = splitter.flush()
+                        if (tail.isNotEmpty()) {
+                            try { session.ws.send(tail[0].toByteString()) } catch (_: Exception) {}
+                        }
+                        try { session.ws.close(1000, null) } catch (_: Exception) {}
+                        session.finished.countDown()
+                        try { client.close() } catch (_: Exception) {}
                     }
-                    return
                 }
-                markEndpointFailure(domain)
+                upstream.isDaemon = true
+                upstream.start()
+
+                session.finished.await()
+                try { client.close() } catch (_: Exception) {}
+                return
             }
 
             // 5. Fallback to direct TCP with re-encryption if WebSocket is unreachable
@@ -444,8 +472,7 @@ class TelegramProxyService : Service() {
             val d = "kws$dc.$active"
             if (!isEndpointCoolingDown(d)) result.add(d)
         }
-        val shuffled = cfDomainsList.shuffled()
-        for (base in shuffled) {
+        for (base in cfDomainsList) {
             val d = "kws$dc.$base"
             if (!result.contains(d) && !isEndpointCoolingDown(d)) {
                 result.add(d)
@@ -557,109 +584,123 @@ class TelegramProxyService : Service() {
         return RelayInitResult(rnd, tgEnc, tgDec)
     }
 
-    private fun bridgeWs(
-        client: Socket,
-        clientIn: InputStream,
+    private class WsSession(
+        val ws: WebSocket,
+        val domain: String,
+        val tgEnc: Cipher,
+        val tgDec: Cipher,
+        val finished: CountDownLatch,
+        val running: AtomicBoolean
+    )
+
+    private fun connectFastWs(
         clientOut: OutputStream,
         handshake: ClientHandshakeResult,
-        targetDomain: String
-    ): Boolean {
-        val (relayInit, tgEnc, tgDec) = generateRelayInit(handshake.protoTag, handshake.dcIdx)
-        val splitter = MsgSplitter(handshake.protoTag)
-        val opened = CountDownLatch(1)
-        val finished = CountDownLatch(1)
-        val running = AtomicBoolean(true)
-        val openedSuccess = AtomicBoolean(false)
+        targetDc: Int
+    ): WsSession? {
+        val candidates = domainsForDc(targetDc)
+            .filter { !isEndpointCoolingDown(it) }
+            .take(4)
+            .ifEmpty { domainsForDc(targetDc).take(2) }
 
-        val listener = object : WebSocketListener() {
-            override fun onOpen(webSocket: WebSocket, response: Response) {
-                android.util.Log.i("TG_PROXY", "WS to $targetDomain OPENED successfully!")
-                openedSuccess.set(true)
-                webSocket.send(relayInit.toByteString())
-                opened.countDown()
-            }
+        if (candidates.isEmpty()) return null
 
-            override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-                if (!running.get()) return
-                try {
-                    val plain = tgDec.update(bytes.toByteArray())
-                    val cltCipher = handshake.cltEnc.update(plain)
-                    synchronized(clientOut) {
-                        clientOut.write(cltCipher)
-                        clientOut.flush()
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w("TG_PROXY", "Error forwarding WS message to client: ${e.message}")
-                    running.set(false)
-                    webSocket.cancel()
-                    finished.countDown()
-                }
-            }
+        val winnerLatch = CountDownLatch(1)
+        val winningSession = java.util.concurrent.atomic.AtomicReference<WsSession?>(null)
+        val pendingWebSockets = CopyOnWriteArrayList<WebSocket>()
 
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                android.util.Log.w("TG_PROXY", "WS to $targetDomain closing: code=$code, reason=$reason")
-                running.set(false)
-                finished.countDown()
-                webSocket.close(code, reason)
-            }
+        for (domain in candidates) {
+            if (winningSession.get() != null) break
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                android.util.Log.e("TG_PROXY", "WS to $targetDomain FAILED: ${t.message}")
-                running.set(false)
-                openedSuccess.set(false)
-                opened.countDown()
-                finished.countDown()
-            }
-        }
+            val (relayInit, tgEnc, tgDec) = generateRelayInit(handshake.protoTag, handshake.dcIdx)
+            val finished = CountDownLatch(1)
+            val running = AtomicBoolean(true)
 
-        android.util.Log.i("TG_PROXY", "Attempting WS connection to wss://$targetDomain$WS_PATH ...")
-        val request = Request.Builder()
-            .url("wss://$targetDomain$WS_PATH")
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
-            .header("Sec-WebSocket-Protocol", "binary")
-            .build()
-
-        val ws = wsClient.newWebSocket(request, listener)
-
-        if (!opened.await(5, TimeUnit.SECONDS) || !openedSuccess.get()) {
-            ws.cancel()
-            return false
-        }
-
-        val upstream = Thread {
-            try {
-                val buf = ByteArray(64 * 1024)
-                while (running.get()) {
-                    val n = clientIn.read(buf)
-                    if (n <= 0) break
-                    val chunk = buf.copyOf(n)
-                    val plain = handshake.cltDec.update(chunk)
-                    val tgCipher = tgEnc.update(plain)
-                    val parts = splitter.split(tgCipher, plain)
-                    for (part in parts) {
-                        if (!ws.send(part.toByteString())) {
-                            running.set(false)
-                            break
+            val listener = object : WebSocketListener() {
+                override fun onOpen(webSocket: WebSocket, response: Response) {
+                    val session = WsSession(webSocket, domain, tgEnc, tgDec, finished, running)
+                    if (winningSession.compareAndSet(null, session)) {
+                        android.util.Log.i("TG_PROXY", "WS race WON by $domain (HTTP ${response.code})")
+                        webSocket.send(relayInit.toByteString())
+                        clearEndpointCooldown(domain)
+                        val base = extractBaseDomain(domain)
+                        if (base != null && !base.endsWith("telegram.org")) {
+                            activeCfDomain[targetDc] = base
                         }
+                        winnerLatch.countDown()
+                    } else {
+                        webSocket.cancel()
                     }
                 }
-            } catch (_: Exception) {} finally {
-                running.set(false)
-                val tail = splitter.flush()
-                if (tail.isNotEmpty()) {
-                    try { ws.send(tail[0].toByteString()) } catch (_: Exception) {}
+
+                override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
+                    if (!running.get()) return
+                    try {
+                        val plain = tgDec.update(bytes.toByteArray())
+                        val cltCipher = handshake.cltEnc.update(plain)
+                        synchronized(clientOut) {
+                            clientOut.write(cltCipher)
+                            clientOut.flush()
+                        }
+                    } catch (e: Exception) {
+                        running.set(false)
+                        webSocket.cancel()
+                        finished.countDown()
+                    }
                 }
-                try { ws.close(1000, null) } catch (_: Exception) {}
-                finished.countDown()
-                try { client.close() } catch (_: Exception) {}
+
+                override fun onMessage(webSocket: WebSocket, text: String) {
+                    onMessage(webSocket, text.encodeUtf8())
+                }
+
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                    running.set(false)
+                    finished.countDown()
+                    webSocket.close(code, reason)
+                }
+
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    android.util.Log.w("TG_PROXY", "WS to $domain failed: ${t.message}")
+                    markEndpointFailure(domain)
+                    if (activeCfDomain[targetDc]?.let { domain.contains(it) } == true) {
+                        activeCfDomain.remove(targetDc)
+                    }
+                    val session = winningSession.get()
+                    if (session != null && session.domain == domain) {
+                        running.set(false)
+                        finished.countDown()
+                    }
+                }
+            }
+
+            val request = Request.Builder()
+                .url("wss://$domain$WS_PATH")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                .header("Sec-WebSocket-Protocol", "binary")
+                .build()
+
+            val ws = wsClient.newWebSocket(request, listener)
+            pendingWebSockets.add(ws)
+
+            // Stagger candidates by 500ms; if one connects, break early
+            if (winnerLatch.await(500, TimeUnit.MILLISECONDS)) {
+                break
             }
         }
-        upstream.isDaemon = true
-        upstream.start()
 
-        finished.await()
-        try { client.close() } catch (_: Exception) {}
-        return true
+        // Wait up to 2500ms for any candidate to complete handshake
+        if (winningSession.get() == null) {
+            winnerLatch.await(2500, TimeUnit.MILLISECONDS)
+        }
+
+        val session = winningSession.get()
+        // Cancel all unselected connections
+        for (ws in pendingWebSockets) {
+            if (session == null || ws != session.ws) {
+                try { ws.cancel() } catch (_: Exception) {}
+            }
+        }
+        return session
     }
 
     private fun bridgeTcp(
@@ -745,7 +786,7 @@ class TelegramProxyService : Service() {
     }
 
     private fun markEndpointFailure(host: String) {
-        endpointCooldownUntil[host] = System.currentTimeMillis() + 15000
+        endpointCooldownUntil[host] = System.currentTimeMillis() + 600_000L
     }
 
     private fun clearEndpointCooldown(host: String) {
