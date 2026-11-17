@@ -137,4 +137,47 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
         if (::isProxyApps.isInitialized) isProxyApps.isChecked = DataStore.proxyApps
         if (::globalCustomConfig.isInitialized) globalCustomConfig.notifyChanged()
     }
+
+    override fun onDisplayPreferenceDialog(preference: Preference) {
+        if (preference is EditTextPreference) {
+            val context = context ?: return
+            val input = com.google.android.material.textfield.TextInputEditText(context).apply {
+                setText(preference.text ?: "")
+                if (preference.key == Key.MIXED_PORT) {
+                    inputType = EditorInfo.TYPE_CLASS_NUMBER
+                } else {
+                    inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+                }
+                setSingleLine(true)
+                setSelection(text?.length ?: 0)
+            }
+            val inputLayout = com.google.android.material.textfield.TextInputLayout(context).apply {
+                hint = preference.title
+                val padH = (24 * resources.displayMetrics.density).toInt()
+                val padV = (12 * resources.displayMetrics.density).toInt()
+                setPadding(padH, padV, padH, padV)
+                addView(input)
+            }
+            MaterialAlertDialogBuilder(context)
+                .setTitle(preference.title)
+                .setView(inputLayout)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    val value = input.text?.toString()?.trim() ?: ""
+                    if (preference.callChangeListener(value)) {
+                        preference.text = value
+                        if (preference.key == Key.SSH_ACCESS_KEY || preference.key == "sshAccessKey") {
+                            DataStore.sshAccessKey = value
+                        }
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
+            return
+        }
+        try {
+            super.onDisplayPreferenceDialog(preference)
+        } catch (e: Exception) {
+            Logs.w(e)
+        }
+    }
 }

@@ -17,6 +17,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.ArrayAdapter
+import android.view.inputmethod.EditorInfo
 import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.TextView
@@ -88,16 +89,16 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         val setupBtn = findViewById<com.google.android.material.button.MaterialButton>(R.id.setupTelegramButton)
         addressText.visibility = if (enabled) View.VISIBLE else View.GONE
         setupBtn?.visibility = if (enabled) View.VISIBLE else View.GONE
-        addressText.text = "127.0.0.1:1443"
+        addressText.text = "SOCKS5: 127.0.0.1:1443"
     }
 
     private fun openTelegramProxySettings() {
-        val proxyUri = "tg://proxy?server=127.0.0.1&port=1443&secret=${TelegramProxyService.DEFAULT_SECRET_HEX}".toUri()
+        val proxyUri = "tg://socks?server=127.0.0.1&port=1443".toUri()
         try {
             startActivity(Intent(Intent.ACTION_VIEW, proxyUri))
         } catch (_: Exception) {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Telegram Proxy", proxyUri.toString()))
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Telegram SOCKS5 Proxy", proxyUri.toString()))
             snackbar("Telegram proxy link copied to clipboard").show()
         }
     }
@@ -133,6 +134,15 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         }
 
         statusLabel = findViewById(R.id.statusLabel)
+        statusLabel?.setOnClickListener {
+            if (DataStore.sshAccessKey.trim().isEmpty() && selectedMode == "Франция SSH") {
+                showSshKeyDialog {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        connectToFranceSSH()
+                    }
+                }
+            }
+        }
         searchStatusLabel = findViewById(R.id.searchStatusLabel)
         connectButton = findViewById(R.id.connectButton)
         speedLayout = findViewById(R.id.speedLayout)
@@ -188,10 +198,45 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         }
     }
 
+    private fun showSshKeyDialog(onSuccess: (() -> Unit)? = null) {
+        val input = com.google.android.material.textfield.TextInputEditText(this).apply {
+            setText(DataStore.sshAccessKey)
+            inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            setSingleLine(true)
+            setSelection(text?.length ?: 0)
+        }
+        val layout = com.google.android.material.textfield.TextInputLayout(this).apply {
+            hint = getString(R.string.ssh_access_key)
+            val padH = (24 * resources.displayMetrics.density).toInt()
+            val padV = (12 * resources.displayMetrics.density).toInt()
+            setPadding(padH, padV, padH, padV)
+            addView(input)
+        }
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.ssh_access_key)
+            .setView(layout)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val newKey = input.text?.toString()?.trim() ?: ""
+                DataStore.sshAccessKey = newKey
+                if (newKey.isNotEmpty()) {
+                    statusLabel?.text = ""
+                    onSuccess?.invoke()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     private suspend fun getSshBeanForCurrentKey(): SSHBean? {
         val key = DataStore.sshAccessKey.trim()
         if (key.isEmpty()) {
-            showError("SSH key is not specified. Set it in Settings > SSH Access Key.")
+            withContext(Dispatchers.Main) {
+                showSshKeyDialog {
+                    lifecycleScope.launch(Dispatchers.IO) {
+                        connectToFranceSSH()
+                    }
+                }
+            }
             return null
         }
 

@@ -83,7 +83,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                                 .subText(SagerNet.appVersionNameForDisplay)
                                 .setOnClickAction {
                                     requireContext().launchCustomTab(
-                                        "https://github.com/MatsuriDayo/NekoBoxForAndroid/releases"
+                                        "https://github.com/fdarryl/Flux/releases"
                                     )
                                 }
                                 .build())
@@ -220,28 +220,25 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                     }
                     val response = client.newRequest().apply {
                         if (checkPreview) {
-                            setURL("https://api.github.com/repos/MatsuriDayo/NekoBoxForAndroid/releases/tags/preview")
+                            setURL("https://api.github.com/repos/fdarryl/Flux/releases/tags/preview")
                         } else {
-                            setURL("https://api.github.com/repos/MatsuriDayo/NekoBoxForAndroid/releases/latest")
+                            setURL("https://api.github.com/repos/fdarryl/Flux/releases/latest")
                         }
                     }.execute()
                     val release = JSONObject(Util.getStringBox(response.contentString))
-                    val releaseName = release.getString("name")
+                    val releaseName = release.optString("name")
+                    val tagName = release.optString("tag_name").ifBlank { releaseName }
                     val releaseUrl = release.getString("html_url")
-                    var haveUpdate = releaseName.isNotBlank()
+                    var haveUpdate = tagName.isNotBlank()
                     haveUpdate = if (isPreview) {
                         if (checkPreview) {
                             haveUpdate && releaseName != BuildConfig.PRE_VERSION_NAME
                         } else {
                             // User: 1.3.9 pre-1.4.0 Stable: 1.3.9 -> No update
-                            haveUpdate && releaseName != BuildConfig.VERSION_NAME
+                            haveUpdate && AppUpdater.isNewer(BuildConfig.VERSION_NAME, tagName)
                         }
                     } else {
-                        // User: 1.4.0 Preview: pre-1.4.0 -> No update
-                        // User: 1.4.0 Preview: pre-1.4.1 -> Update
-                        // User: 1.4.0 Stable: 1.4.0 -> No update
-                        // User: 1.4.0 Stable: 1.4.1 -> Update
-                        haveUpdate && !releaseName.contains(BuildConfig.VERSION_NAME)
+                        haveUpdate && AppUpdater.isNewer(BuildConfig.VERSION_NAME, tagName)
                     }
                     runOnMainDispatcher {
                         if (haveUpdate) {

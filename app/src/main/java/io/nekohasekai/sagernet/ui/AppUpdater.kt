@@ -34,24 +34,57 @@ class AppUpdater(private val context: Context) {
             it == "arm64-v8a" || it == "armeabi-v7a" || it == "x86_64" || it == "x86"
         } ?: "arm64-v8a"
 
-        private fun normalizedVersion(version: String): List<Int> =
-            Regex("""\d+(?:\.\d+)+""").find(version)?.value.orEmpty()
-                .split(".").map { it.toIntOrNull() ?: 0 }
+        /**
+         * Extracts all numeric version components from a version string or filename.
+         * For example: "v1.4.16" -> [1, 4, 16], "Flux-1.4.16-universal.apk" -> [1, 4, 16].
+         */
+        fun parseVersion(version: String): List<Int> {
+            val match = Regex("""\d+(?:\.\d+)+""").find(version)?.value
+            if (match != null) {
+                return match.split(".").mapNotNull { it.toIntOrNull() }
+            }
+            val numbers = Regex("""\d+""").findAll(version).mapNotNull { it.value.toIntOrNull() }.toList()
+            return numbers.ifEmpty { listOf(0) }
+        }
 
-        private fun isNewer(latest: String): Boolean {
-            val current = normalizedVersion(BuildConfig.VERSION_NAME)
-            val available = normalizedVersion(latest)
-            return (0..2).firstNotNullOfOrNull { index ->
-                when {
-                    available.getOrElse(index) { 0 } > current.getOrElse(index) { 0 } -> true
-                    available.getOrElse(index) { 0 } < current.getOrElse(index) { 0 } -> false
-                    else -> null
-                }
-            } ?: false
+        /**
+         * Robust semver comparison across all version components.
+         * Returns true only if availableVer is strictly greater than currentVer.
+         */
+        fun isNewer(currentVer: String, availableVer: String): Boolean {
+            val current = parseVersion(currentVer)
+            val available = parseVersion(availableVer)
+            val maxLen = maxOf(current.size, available.size)
+            for (i in 0 until maxLen) {
+                val c = current.getOrElse(i) { 0 }
+                val a = available.getOrElse(i) { 0 }
+                if (a > c) return true
+                if (a < c) return false
+            }
+            return false
         }
     }
 
+    /**
+     * Cleans up previously downloaded APKs in filesDir/updates that are no longer newer than
+     * the currently installed version.
+     */
+    fun cleanOldUpdates() {
+        try {
+            val updateDirectory = File(context.filesDir, "updates")
+            if (updateDirectory.isDirectory) {
+                updateDirectory.listFiles()?.forEach { file ->
+                    if (file.isFile && !isNewer(BuildConfig.VERSION_NAME, file.name)) {
+                        file.delete()
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+    }
+
     suspend fun checkLatest(): AppRelease? = withContext(Dispatchers.IO) {
+        cleanOldUpdates()
+
         val connection = URL(releaseUrl).openConnection() as HttpURLConnection
         try {
             connection.connectTimeout = 10_000
@@ -60,8 +93,8 @@ class AppUpdater(private val context: Context) {
             if (connection.responseCode !in 200..299) return@withContext null
 
             val release = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-            val version = release.optString("tag_name")
-            if (version.isBlank() || !isNewer(version)) return@withContext null
+            val tagName = release.optString("tag_name").ifBlank { release.optString("name") }
+            if (tagName.isBlank() || !isNewer(BuildConfig.VERSION_NAME, tagName)) return@withContext null
 
             val assets = release.optJSONArray("assets") ?: return@withContext null
             var targetAsset: JSONObject? = null
@@ -82,7 +115,7 @@ class AppUpdater(private val context: Context) {
                 for (index in 0 until assets.length()) {
                     val asset = assets.getJSONObject(index)
                     val name = asset.optString("name")
-                    if (name.endsWith(".apk", true) && name.contains(abi)) {
+                    if (name.endsWith(".apk", true) && name.contains(abi, ignoreCase = true)) {
                         targetAsset = asset
                         break
                     }
@@ -90,10 +123,18 @@ class AppUpdater(private val context: Context) {
             }
 
             if (targetAsset != null) {
+                val fileName = targetAsset.optString("name")
+                // Защита от цикла: если имя APK содержит версию, проверяем, что она действительно новее установленной.
+                // Это предотвращает бесконечный цикл обновлений, когда тег на GitHub новый (например, v1.4.15),
+                // но сам собранный APK содержит старую версию (например, Flux-1.4.14-universal.apk).
+                if (Regex("""\d+(?:\.\d+)+""").containsMatchIn(fileName) && !isNewer(BuildConfig.VERSION_NAME, fileName)) {
+                    return@withContext null
+                }
+
                 return@withContext AppRelease(
-                    version,
+                    tagName,
                     targetAsset.optString("browser_download_url"),
-                    targetAsset.optString("name")
+                    fileName
                 )
             }
             null
@@ -148,7 +189,11 @@ class AppUpdater(private val context: Context) {
             connection.readTimeout = 60_000
             connection.setRequestProperty("Accept", "application/octet-stream")
             if (connection.responseCode !in 200..299) error("Download failed: HTTP ${connection.responseCode}")
-            val total = connection.contentLengthLong
+            val total = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                connection.contentLengthLong
+            } else {
+                connection.contentLength.toLong()
+            }
             var downloaded = 0L
             connection.inputStream.use { input ->
                 temporaryFile.outputStream().use { output ->
@@ -186,9 +231,8 @@ class AppUpdater(private val context: Context) {
         require(file.isFile && file.length() > 0) { "Downloaded APK is missing" }
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.cache", file)
         context.startActivity(
-            Intent(Intent.ACTION_INSTALL_PACKAGE)
+            Intent(Intent.ACTION_VIEW)
                 .setDataAndType(uri, "application/vnd.android.package-archive")
-                .putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         )
     }
