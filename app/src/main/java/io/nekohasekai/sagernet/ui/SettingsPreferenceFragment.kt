@@ -141,26 +141,22 @@ class SettingsPreferenceFragment : PreferenceFragmentCompat() {
     override fun onDisplayPreferenceDialog(preference: Preference) {
         if (preference is EditTextPreference) {
             val context = context ?: return
-            val input = com.google.android.material.textfield.TextInputEditText(context).apply {
-                setText(preference.text ?: "")
-                if (preference.key == Key.MIXED_PORT) {
-                    inputType = EditorInfo.TYPE_CLASS_NUMBER
-                } else {
-                    inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-                }
-                setSingleLine(true)
-                setSelection(text?.length ?: 0)
+            val dialogView = layoutInflater.inflate(R.layout.dialog_ssh_key, null, false)
+            val inputLayout = dialogView.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.keyInputLayout)
+            val input = dialogView.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.keyInput)
+
+            inputLayout.hint = preference.title
+            input.setText(preference.text ?: "")
+            if (preference.key == Key.MIXED_PORT) {
+                input.inputType = EditorInfo.TYPE_CLASS_NUMBER
+            } else {
+                input.inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             }
-            val inputLayout = com.google.android.material.textfield.TextInputLayout(context).apply {
-                hint = preference.title
-                val padH = (24 * resources.displayMetrics.density).toInt()
-                val padV = (12 * resources.displayMetrics.density).toInt()
-                setPadding(padH, padV, padH, padV)
-                addView(input)
-            }
+            input.setSelection(input.text?.length ?: 0)
+
             MaterialAlertDialogBuilder(context)
                 .setTitle(preference.title)
-                .setView(inputLayout)
+                .setView(dialogView)
                 .setPositiveButton(android.R.string.ok) { _, _ ->
                     val value = input.text?.toString()?.trim() ?: ""
                     if (preference.callChangeListener(value)) {

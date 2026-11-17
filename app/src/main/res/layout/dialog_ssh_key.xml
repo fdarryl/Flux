@@ -9,15 +9,18 @@
     android:paddingBottom="8dp">
 
     <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/keyInputLayout"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="SSH key">
+        android:hint="@string/ssh_access_key">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/keyInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:inputType="textNoSuggestions" />
+            android:inputType="textNoSuggestions"
+            android:singleLine="true" />
     </com.google.android.material.textfield.TextInputLayout>
 </LinearLayout>
 

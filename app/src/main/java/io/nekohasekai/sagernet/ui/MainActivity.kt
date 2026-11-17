@@ -199,22 +199,14 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
     }
 
     private fun showSshKeyDialog(onSuccess: (() -> Unit)? = null) {
-        val input = com.google.android.material.textfield.TextInputEditText(this).apply {
-            setText(DataStore.sshAccessKey)
-            inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-            setSingleLine(true)
-            setSelection(text?.length ?: 0)
-        }
-        val layout = com.google.android.material.textfield.TextInputLayout(this).apply {
-            hint = getString(R.string.ssh_access_key)
-            val padH = (24 * resources.displayMetrics.density).toInt()
-            val padV = (12 * resources.displayMetrics.density).toInt()
-            setPadding(padH, padV, padH, padV)
-            addView(input)
-        }
+        val dialogView = layoutInflater.inflate(R.layout.dialog_ssh_key, null, false)
+        val input = dialogView.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.keyInput)
+        input.setText(DataStore.sshAccessKey)
+        input.setSelection(input.text?.length ?: 0)
+
         com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
             .setTitle(R.string.ssh_access_key)
-            .setView(layout)
+            .setView(dialogView)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val newKey = input.text?.toString()?.trim() ?: ""
                 DataStore.sshAccessKey = newKey

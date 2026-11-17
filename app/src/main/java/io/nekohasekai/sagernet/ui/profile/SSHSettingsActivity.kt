@@ -80,25 +80,23 @@ class SSHSettingsActivity : ProfileSettingsActivity<SSHBean>() {
     override fun PreferenceFragmentCompat.displayPreferenceDialog(preference: Preference): Boolean {
         if (preference.key == Key.SERVER_PRIVATE_KEY) {
             val ctx = context ?: return false
-            val editText = com.google.android.material.textfield.TextInputEditText(ctx).apply {
-                setText(DataStore.serverPrivateKey)
-                inputType = android.view.inputmethod.EditorInfo.TYPE_CLASS_TEXT or
-                    android.view.inputmethod.EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE or
-                    android.view.inputmethod.EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS
-                minLines = 4
-                maxLines = 10
-                gravity = android.view.Gravity.TOP or android.view.Gravity.START
-            }
-            val inputLayout = com.google.android.material.textfield.TextInputLayout(ctx).apply {
-                hint = getString(R.string.ssh_private_key)
-                val padH = (24 * resources.displayMetrics.density).toInt()
-                val padV = (12 * resources.displayMetrics.density).toInt()
-                setPadding(padH, padV, padH, padV)
-                addView(editText)
-            }
+            val dialogView = layoutInflater.inflate(R.layout.dialog_ssh_key, null, false)
+            val inputLayout = dialogView.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.keyInputLayout)
+            val editText = dialogView.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.keyInput)
+
+            inputLayout.hint = getString(R.string.ssh_private_key)
+            editText.setText(DataStore.serverPrivateKey)
+            editText.inputType = android.view.inputmethod.EditorInfo.TYPE_CLASS_TEXT or
+                android.view.inputmethod.EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE or
+                android.view.inputmethod.EditorInfo.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            editText.isSingleLine = false
+            editText.minLines = 4
+            editText.maxLines = 10
+            editText.gravity = android.view.Gravity.TOP or android.view.Gravity.START
+
             com.google.android.material.dialog.MaterialAlertDialogBuilder(ctx)
                 .setTitle(R.string.ssh_private_key)
-                .setView(inputLayout)
+                .setView(dialogView)
                 .setPositiveButton(android.R.string.ok) { _, _ ->
                     val text = editText.text?.toString()?.trim() ?: ""
                     (preference as? EditTextPreference)?.text = text

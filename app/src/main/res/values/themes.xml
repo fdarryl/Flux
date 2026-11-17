@@ -4,7 +4,7 @@
         <item name="actionBarStyle">@style/Widget.MaterialComponents.ActionBar.Solid</item>
         <item name="actionModeCloseDrawable">@drawable/ic_navigation_close</item>
         <item name="colorButtonNormal">?colorAccent</item>
-        <item name="android:navigationBarColor">?android:attr/windowBackground</item>
+        <item name="android:navigationBarColor">?android:attr/colorBackground</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="o">true</item>
         <item name="colorPrimary">@color/material_pink_500</item>
         <item name="colorPrimaryDark">@color/material_pink_700</item>
@@ -29,12 +29,15 @@
         <item name="chipStyle">@style/Widget.MaterialComponents.Chip.Choice.SagerNet</item>
         <item name="itemShapeAppearance">@style/ShapeAppearance.MaterialComponents.MediumComponent</item>
         <item name="alertDialogTheme">@style/Theme.SagerNet.Dialog</item>
+        <item name="materialAlertDialogTheme">@style/Theme.SagerNet.Dialog</item>
     </style>
 
     <!-- Базовая тема диалогов -->
     <style name="Theme.SagerNet.Dialog" parent="Theme.MaterialComponents.DayNight.Dialog.Alert">
         <item name="colorPrimary">@color/material_pink_500</item>
         <item name="colorAccent">@color/material_pink_accent_200</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="windowFixedHeightMajor" type="dimen">95%</item>
     </style>
 
