@@ -25,4 +25,5 @@ if [ ! -f "$GOPATH/bin/gomobile-matsuri" ]; then
     mv "$GOPATH/bin/gobind" "$GOPATH/bin/gobind-matsuri"
 fi
 
-GOBIND=gobind-matsuri gomobile-matsuri init
+export PATH="$GOPATH/bin:$PATH"
+GOBIND=gobind-matsuri "$GOPATH/bin/gomobile-matsuri" init

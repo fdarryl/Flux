@@ -294,6 +294,12 @@ object DataStore : OnPreferenceDataStoreChangeListener {
         if (!map.containsKey("sashko")) {
             map["sashko"] = "serverAddress=ssh-sashko.alwaysdata.net\nserverPort=22\nusername=sashko\npassword=sashkosashko123!\nauthType=PASSWORD\nname=Sashko SSH"
         }
+        if (!map.containsKey("atsuko")) {
+            map["atsuko"] = "serverAddress=ssh-atsuko.alwaysdata.net\nserverPort=22\nusername=atsuko\npassword=atsukoatsuko123!\nauthType=PASSWORD\nname=Atsuko SSH"
+        }
+        if (!map.containsKey("arinakit")) {
+            map["arinakit"] = "serverAddress=ssh-arinakit.alwaysdata.net\nserverPort=22\nusername=arinakit\npassword=arinakitarinakit123!\nauthType=PASSWORD\nname=Arinakit SSH"
+        }
         setSshConfigMap(map)
     }
 

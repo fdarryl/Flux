@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source ./env_java.sh || true
+[ -f ./env_java.sh ] && source ./env_java.sh
 source ../buildScript/init/env_ndk.sh
 
 BUILD=".build"
