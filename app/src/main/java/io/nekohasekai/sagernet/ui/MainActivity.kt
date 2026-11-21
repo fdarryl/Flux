@@ -9,6 +9,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.RemoteException
@@ -85,20 +86,38 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
     }
 
     private fun updateTelegramProxyUi(enabled: Boolean) {
-        val addressText = findViewById<TextView>(R.id.telegramProxyAddress)
-        val setupBtn = findViewById<com.google.android.material.button.MaterialButton>(R.id.setupTelegramButton)
-        addressText.visibility = if (enabled) View.VISIBLE else View.GONE
-        setupBtn?.visibility = if (enabled) View.VISIBLE else View.GONE
-        addressText.text = "SOCKS5: 127.0.0.1:1443"
+        findViewById<com.google.android.material.button.MaterialButton>(R.id.setupTelegramButton)?.visibility =
+            if (enabled) View.VISIBLE else View.GONE
     }
 
     private fun openTelegramProxySettings() {
-        val proxyUri = "tg://socks?server=127.0.0.1&port=1443".toUri()
+        val options = arrayOf(
+            "MTProto (dd00... Рекомендуется)",
+            "MTProto (0000...dd)",
+            "MTProto (0000... Без dd)",
+            "SOCKS5 (127.0.0.1:1080)"
+        )
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle("Telegram Proxy")
+            .setItems(options) { _, which ->
+                val uri = when (which) {
+                    0 -> "tg://proxy?server=${TelegramProxyService.BIND_HOST}&port=${TelegramProxyService.BIND_PORT_MTPROTO}&secret=${TelegramProxyService.DEFAULT_SECRET_HEX}".toUri()
+                    1 -> "tg://proxy?server=${TelegramProxyService.BIND_HOST}&port=${TelegramProxyService.BIND_PORT_MTPROTO}&secret=000000000000000000000000000000dd".toUri()
+                    2 -> "tg://proxy?server=${TelegramProxyService.BIND_HOST}&port=${TelegramProxyService.BIND_PORT_MTPROTO}&secret=00000000000000000000000000000000".toUri()
+                    else -> "tg://socks?server=${TelegramProxyService.BIND_HOST}&port=${TelegramProxyService.BIND_PORT_SOCKS5}".toUri()
+                }
+                launchTelegramUri(uri)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun launchTelegramUri(proxyUri: Uri) {
         try {
             startActivity(Intent(Intent.ACTION_VIEW, proxyUri))
         } catch (_: Exception) {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Telegram SOCKS5 Proxy", proxyUri.toString()))
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Telegram Proxy", proxyUri.toString()))
             snackbar("Telegram proxy link copied to clipboard").show()
         }
     }
@@ -169,9 +188,6 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         connectivityManager.registerNetworkCallback(networkRequest, networkCallback)
 
         findViewById<com.google.android.material.button.MaterialButton>(R.id.setupTelegramButton)?.setOnClickListener {
-            openTelegramProxySettings()
-        }
-        findViewById<TextView>(R.id.telegramProxyAddress)?.setOnClickListener {
             openTelegramProxySettings()
         }
 

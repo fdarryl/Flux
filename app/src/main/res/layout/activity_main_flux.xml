@@ -41,26 +41,12 @@
 
             <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/telegramProxyToggle"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
                 android:text="Telegram Proxy"
                 android:textSize="16sp"
                 android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/telegramProxyAddress"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:text="127.0.0.1:1443"
-                android:textColor="?attr/colorPrimary"
-                android:textSize="12sp"
-                android:visibility="gone" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/setupTelegramButton"
