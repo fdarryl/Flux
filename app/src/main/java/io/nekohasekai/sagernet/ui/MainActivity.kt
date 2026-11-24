@@ -37,6 +37,7 @@ import io.nekohasekai.sagernet.aidl.ISagerNetService
 import io.nekohasekai.sagernet.aidl.SpeedDisplayData
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.bg.SagerConnection
+import io.nekohasekai.sagernet.bg.SubscriptionUpdater
 import io.nekohasekai.sagernet.bg.TelegramProxyService
 import io.nekohasekai.sagernet.bg.proto.UrlTest
 import io.nekohasekai.sagernet.database.*
@@ -175,10 +176,14 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         setupModeSelector()
         connection.connect(this, this)
         lifecycleScope.launch {
-            availableRelease = appUpdater.checkLatest()
-            availableRelease?.let {
-                appUpdater.notifyIfNeeded(it)
-                invalidateOptionsMenu()
+            try {
+                availableRelease = appUpdater.checkLatest()
+                availableRelease?.let {
+                    appUpdater.notifyIfNeeded(it)
+                    invalidateOptionsMenu()
+                }
+            } catch (e: Exception) {
+                io.nekohasekai.sagernet.ktx.Logs.w(e)
             }
         }
         
@@ -203,13 +208,17 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
                     } else {
                         startService(serviceIntent)
                     }
-                } catch (e: SecurityException) {
+                } catch (e: Exception) {
                     showError("Cannot start Telegram Proxy: ${e.message}")
                     findViewById<SwitchMaterial>(R.id.telegramProxyToggle).isChecked = false
                 }
             } else {
                 stopTelegramProxy()
-                stopService(Intent(this, TelegramProxyService::class.java))
+                try {
+                    stopService(Intent(this, TelegramProxyService::class.java))
+                } catch (e: Exception) {
+                    io.nekohasekai.sagernet.ktx.Logs.w(e)
+                }
             }
         }
     }
@@ -325,13 +334,31 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         }
     }
 
+    private fun checkHasInternetConnection(): Boolean {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                val activeNetwork = connectivityManager.activeNetwork ?: return false
+                val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            } else {
+                @Suppress("DEPRECATION")
+                val networkInfo = connectivityManager.activeNetworkInfo
+                @Suppress("DEPRECATION")
+                networkInfo != null && networkInfo.isConnected
+            }
+        } catch (_: Exception) {
+            isNetworkAvailable
+        }
+    }
+
     private suspend fun getOrCreateWhiteListGroup(): ProxyGroup {
+        val targetLink = "https://raw.githubusercontent.com/zieng2/wl/main/vless_universal.txt"
         val allGroups = SagerDatabase.groupDao.allGroups()
         var group = allGroups.find { it.name == "Белые Списки" }
         if (group == null) {
             val sub = SubscriptionBean()
             sub.initializeDefaultValues()
-            sub.link = "https://gitverse.ru/api/repos/zieng2/wl/raw/branch/master/list_universal.txt"
+            sub.link = targetLink
             sub.autoUpdate = true
             sub.autoUpdateDelay = 60
             
@@ -341,8 +368,27 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
                 subscription = sub
             )
             group = GroupManager.createGroup(group)
-            GroupUpdater.executeUpdate(group, true)
+        } else {
+            val sub = group.subscription ?: SubscriptionBean().apply { initializeDefaultValues() }
+            var changed = false
+            if (sub.link != targetLink) {
+                sub.link = targetLink
+                changed = true
+            }
+            if (sub.autoUpdate != true) {
+                sub.autoUpdate = true
+                changed = true
+            }
+            if (sub.autoUpdateDelay != 60) {
+                sub.autoUpdateDelay = 60
+                changed = true
+            }
+            if (changed) {
+                group.subscription = sub
+                GroupManager.updateGroup(group)
+            }
         }
+        SubscriptionUpdater.reconfigureUpdater()
         return group
     }
 
@@ -397,13 +443,27 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         found
     }
 
-    private suspend fun connectToWhiteList(retryWithUpdate: Boolean = true) {
+    private suspend fun connectToWhiteList() {
         withContext(Dispatchers.Main) {
             statusLabel?.text = "WAIT..."
             statusLabel?.setTextColor(getColorAttr(android.R.attr.textColorPrimary))
         }
 
         val group = getOrCreateWhiteListGroup()
+        val hasInternet = checkHasInternetConnection()
+
+        if (hasInternet) {
+            withContext(Dispatchers.Main) {
+                searchStatusLabel?.visibility = View.VISIBLE
+                searchStatusLabel?.text = "Updating list..."
+            }
+            try {
+                GroupUpdater.executeUpdate(group, true)
+            } catch (e: Exception) {
+                io.nekohasekai.sagernet.ktx.Logs.w(e)
+            }
+        }
+
         val activeProxy = findActiveProxy(group.id)
 
         if (activeProxy != null) {
@@ -412,23 +472,12 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
             withContext(Dispatchers.Main) {
                 connectLauncher.launch(null)
             }
-        } else if (retryWithUpdate) {
-            withContext(Dispatchers.Main) {
-                searchStatusLabel?.visibility = View.VISIBLE
-                searchStatusLabel?.text = "Updating list..."
-            }
-            try {
-                val success = GroupUpdater.executeUpdate(group, true)
-                if (success) {
-                    connectToWhiteList(false)
-                } else {
-                    showError("Update failed")
-                }
-            } catch (e: Exception) {
-                showError("Error: ${e.message}")
-            }
         } else {
-            showError("No active configs")
+            if (!hasInternet && SagerDatabase.proxyDao.getByGroup(group.id).isEmpty()) {
+                showError("No network connection")
+            } else {
+                showError("No active configs")
+            }
         }
     }
 
@@ -503,7 +552,7 @@ class MainActivity : ThemedActivity(), SagerConnection.Callback {
         if (selectedMode == "Белые Списки" && state == BaseService.State.Idle && msg != null && isNetworkAvailable) {
             lifecycleScope.launch(Dispatchers.IO) {
                 delay(2000)
-                connectToWhiteList(true)
+                connectToWhiteList()
             }
         }
     }

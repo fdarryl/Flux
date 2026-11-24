@@ -172,12 +172,14 @@ class TelegramProxyService : Service() {
             startServer()
         }
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= 34) {
+                startForeground(1, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(1, buildNotification(), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
             } else {
                 startForeground(1, buildNotification())
             }
-        } catch (e: SecurityException) {
+        } catch (e: Throwable) {
             e.printStackTrace()
             stopSelf()
             return START_NOT_STICKY
@@ -191,7 +193,13 @@ class TelegramProxyService : Service() {
             try { wsClient.dispatcher.executorService.shutdownNow() } catch (_: Exception) {}
             try { wsClient.connectionPool.evictAll() } catch (_: Exception) {}
         }
-        workerPool.shutdownNow()
+        try { workerPool.shutdownNow() } catch (_: Exception) {}
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
         super.onDestroy()
     }
 

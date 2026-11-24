@@ -53,7 +53,10 @@ class TileService : BaseTileService(), SagerConnection.Callback {
         qsTile?.apply {
             label = null
             when (serviceState) {
-                BaseService.State.Idle -> error("serviceState")
+                BaseService.State.Idle -> {
+                    icon = iconIdle
+                    state = Tile.STATE_INACTIVE
+                }
                 BaseService.State.Connecting -> {
                     icon = iconBusy
                     state = Tile.STATE_ACTIVE

@@ -85,61 +85,64 @@ class AppUpdater(private val context: Context) {
     suspend fun checkLatest(): AppRelease? = withContext(Dispatchers.IO) {
         cleanOldUpdates()
 
-        val connection = URL(releaseUrl).openConnection() as HttpURLConnection
         try {
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 10_000
-            connection.setRequestProperty("Accept", "application/vnd.github+json")
-            if (connection.responseCode !in 200..299) return@withContext null
+            val connection = URL(releaseUrl).openConnection() as HttpURLConnection
+            try {
+                connection.connectTimeout = 10_000
+                connection.readTimeout = 10_000
+                connection.setRequestProperty("Accept", "application/vnd.github+json")
+                if (connection.responseCode !in 200..299) return@withContext null
 
-            val release = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
-            val tagName = release.optString("tag_name").ifBlank { release.optString("name") }
-            if (tagName.isBlank() || !isNewer(BuildConfig.VERSION_NAME, tagName)) return@withContext null
+                val release = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+                val tagName = release.optString("tag_name").ifBlank { release.optString("name") }
+                if (tagName.isBlank() || !isNewer(BuildConfig.VERSION_NAME, tagName)) return@withContext null
 
-            val assets = release.optJSONArray("assets") ?: return@withContext null
-            var targetAsset: JSONObject? = null
+                val assets = release.optJSONArray("assets") ?: return@withContext null
+                var targetAsset: JSONObject? = null
 
-            // 1. Приоритет: универсальный APK для совместимости со всеми архитектурами
-            for (index in 0 until assets.length()) {
-                val asset = assets.getJSONObject(index)
-                val name = asset.optString("name")
-                if (name.endsWith(".apk", true) && name.contains("universal", ignoreCase = true)) {
-                    targetAsset = asset
-                    break
-                }
-            }
-
-            // 2. Фоллбэк: APK под архитектуру устройства, если универсальный не найден
-            if (targetAsset == null) {
-                val abi = currentAbi()
+                // 1. Приоритет: универсальный APK для совместимости со всеми архитектурами
                 for (index in 0 until assets.length()) {
                     val asset = assets.getJSONObject(index)
                     val name = asset.optString("name")
-                    if (name.endsWith(".apk", true) && name.contains(abi, ignoreCase = true)) {
+                    if (name.endsWith(".apk", true) && name.contains("universal", ignoreCase = true)) {
                         targetAsset = asset
                         break
                     }
                 }
-            }
 
-            if (targetAsset != null) {
-                val fileName = targetAsset.optString("name")
-                // Защита от цикла: если имя APK содержит версию, проверяем, что она действительно новее установленной.
-                // Это предотвращает бесконечный цикл обновлений, когда тег на GitHub новый (например, v1.4.15),
-                // но сам собранный APK содержит старую версию (например, Flux-1.4.14-universal.apk).
-                if (Regex("""\d+(?:\.\d+)+""").containsMatchIn(fileName) && !isNewer(BuildConfig.VERSION_NAME, fileName)) {
-                    return@withContext null
+                // 2. Фоллбэк: APK под архитектуру устройства, если универсальный не найден
+                if (targetAsset == null) {
+                    val abi = currentAbi()
+                    for (index in 0 until assets.length()) {
+                        val asset = assets.getJSONObject(index)
+                        val name = asset.optString("name")
+                        if (name.endsWith(".apk", true) && name.contains(abi, ignoreCase = true)) {
+                            targetAsset = asset
+                            break
+                        }
+                    }
                 }
 
-                return@withContext AppRelease(
-                    tagName,
-                    targetAsset.optString("browser_download_url"),
-                    fileName
-                )
+                if (targetAsset != null) {
+                    val fileName = targetAsset.optString("name")
+                    // Защита от цикла: если имя APK содержит версию, проверяем, что она действительно новее установленной.
+                    if (Regex("""\d+(?:\.\d+)+""").containsMatchIn(fileName) && !isNewer(BuildConfig.VERSION_NAME, fileName)) {
+                        return@withContext null
+                    }
+
+                    return@withContext AppRelease(
+                        tagName,
+                        targetAsset.optString("browser_download_url"),
+                        fileName
+                    )
+                }
+                null
+            } finally {
+                connection.disconnect()
             }
+        } catch (e: Exception) {
+            io.nekohasekai.sagernet.ktx.Logs.w(e)
             null
-        } finally {
-            connection.disconnect()
         }
     }
 

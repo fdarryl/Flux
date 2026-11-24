@@ -265,7 +265,8 @@
             android:name="io.nekohasekai.sagernet.bg.TelegramProxyService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="systemExempted"
+            tools:ignore="ForegroundServicePermission" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -193,9 +193,14 @@ class SagerNet : Application(),
             }
         }
 
-        fun startService() = ContextCompat.startForegroundService(
-            application, Intent(application, SagerConnection.serviceClass)
-        )
+        fun startService() = try {
+            ContextCompat.startForegroundService(
+                application, Intent(application, SagerConnection.serviceClass)
+            )
+        } catch (e: Exception) {
+            Logs.w(e)
+            null
+        }
 
         fun reloadService() =
             application.sendBroadcast(Intent(Action.RELOAD).setPackage(application.packageName))

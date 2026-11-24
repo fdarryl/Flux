@@ -40,11 +40,17 @@ class UpdateActivity : ThemedActivity() {
         status = findViewById(R.id.updateStatus)
         installButton = findViewById(R.id.installUpdateButton)
         updater = AppUpdater(this)
-        release = AppRelease(
-            requireNotNull(intent.getStringExtra(versionKey)),
-            requireNotNull(intent.getStringExtra(urlKey)),
-            requireNotNull(intent.getStringExtra(fileNameKey))
-        )
+
+        val version = intent.getStringExtra(versionKey)
+        val url = intent.getStringExtra(urlKey)
+        val fileName = intent.getStringExtra(fileNameKey)
+
+        if (version == null || url == null || fileName == null) {
+            finish()
+            return
+        }
+
+        release = AppRelease(version, url, fileName)
 
         val existingFile = File(filesDir, "updates/${release.fileName}")
         if (existingFile.isFile && existingFile.length() > 0) {

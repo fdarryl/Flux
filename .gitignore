@@ -20,3 +20,11 @@ signing.properties
 
 # submodules
 /external
+
+# Standalone Windows Python application
+/windows/.venv/
+/windows/dist/
+/windows/build/
+/windows/*.spec
+__pycache__/
+*.py[cod]
